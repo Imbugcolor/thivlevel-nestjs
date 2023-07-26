@@ -14,6 +14,7 @@ import { ItemService } from 'src/item/item.service';
 import { VariantService } from 'src/variant/variant.service';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartAction } from './enum/update-cart-action.enum';
+import { DeleteItemDto } from './dto/delete-item-cart.dto';
 
 @Injectable()
 export class CartService {
@@ -254,6 +255,10 @@ export class CartService {
 
     const cart = await this.validateCart(null, cartId);
 
+    if (!cart) {
+      throw new NotFoundException(`This cart id: ${cartId} not exists.`);
+    }
+
     const indexFound = cart.items.findIndex((item) => item._id == itemId);
 
     const product = await this.productService.getProduct(
@@ -289,5 +294,33 @@ export class CartService {
     }
 
     return cart.save();
+  }
+
+  async deleteItemCart(deleteItemDto: DeleteItemDto): Promise<Cart> {
+    const { cartId, itemId } = deleteItemDto;
+
+    await this.itemService.deleteItem(itemId);
+
+    await this.cartModel.findByIdAndUpdate(cartId, {
+      $pull: {
+        items: {
+          $in: [itemId],
+        },
+      },
+    });
+
+    const newCart = await this.validateCart(null, cartId);
+
+    if (!newCart) {
+      throw new NotFoundException(`This cart id: ${cartId} not exists.`);
+    }
+
+    newCart.items.length === 0
+      ? (newCart.subTotal = 0)
+      : (newCart.subTotal = newCart.items
+          .map((item) => item.total)
+          .reduce((acc, next) => acc + next));
+
+    return newCart.save();
   }
 }

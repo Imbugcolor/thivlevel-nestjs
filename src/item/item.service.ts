@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Item } from './item.schema';
 import { Model } from 'mongoose';
@@ -15,5 +15,15 @@ export class ItemService {
 
   async updateItem(id: string, item: any): Promise<Item> {
     return this.itemModel.findByIdAndUpdate(id, item, { new: true });
+  }
+
+  async deleteItem(id: string): Promise<Item> {
+    const item = this.itemModel.findByIdAndDelete(id);
+
+    if (!item) {
+      throw new NotFoundException(`This item id: ${id} not exists.`);
+    }
+
+    return item;
   }
 }

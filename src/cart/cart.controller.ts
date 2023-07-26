@@ -7,6 +7,7 @@ import { AddCartDto } from './dto/add-cart.dto';
 import { Cart } from './cart.schema';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartAction } from './enum/update-cart-action.enum';
+import { DeleteItemDto } from './dto/delete-item-cart.dto';
 
 @Controller('cart')
 export class CartController {
@@ -43,5 +44,11 @@ export class CartController {
       updateCartDto,
       UpdateCartAction.DECREMENT,
     );
+  }
+
+  @Patch('delete-item')
+  @UseGuards(AccessTokenGuard)
+  deleteItem(@Body() deleteItemDto: DeleteItemDto): Promise<Cart> {
+    return this.cartService.deleteItemCart(deleteItemDto);
   }
 }
