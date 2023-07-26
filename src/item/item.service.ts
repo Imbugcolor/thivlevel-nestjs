@@ -26,4 +26,8 @@ export class ItemService {
 
     return item;
   }
+
+  async deleteArrayItems(ids: Item[]): Promise<any> {
+    return this.itemModel.deleteMany({ _id: { $in: ids } });
+  }
 }

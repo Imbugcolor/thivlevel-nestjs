@@ -261,11 +261,19 @@ export class CartService {
 
     const indexFound = cart.items.findIndex((item) => item._id == itemId);
 
-    const product = await this.productService.getProduct(
-      cart.items[indexFound].productId._id,
-    );
-
     if (indexFound !== -1) {
+      if (
+        updateAction === UpdateCartAction.DECREMENT &&
+        cart.items[indexFound].quantity === 1
+      ) {
+        throw new InternalServerErrorException(
+          `Quantity must be greater than 1`,
+        );
+      }
+      const product = await this.productService.getProduct(
+        cart.items[indexFound].productId._id,
+      );
+
       let newItem;
       if (updateAction === UpdateCartAction.INCREMENT) {
         newItem = {
@@ -322,5 +330,20 @@ export class CartService {
           .reduce((acc, next) => acc + next));
 
     return newCart.save();
+  }
+
+  async emptyCart(cartId: string): Promise<Cart> {
+    const cart = await this.cartModel.findById(cartId);
+
+    if (!cart) {
+      throw new NotFoundException(`This cart id: ${cartId} not exists.`);
+    }
+
+    await this.itemService.deleteArrayItems(cart.items);
+
+    cart.items = [];
+    cart.subTotal = 0;
+
+    return cart.save();
   }
 }

@@ -51,4 +51,10 @@ export class CartController {
   deleteItem(@Body() deleteItemDto: DeleteItemDto): Promise<Cart> {
     return this.cartService.deleteItemCart(deleteItemDto);
   }
+
+  @Patch('empty-cart')
+  @UseGuards(AccessTokenGuard)
+  emptyCart(@Body('cartId') cartId: string): Promise<Cart> {
+    return this.cartService.emptyCart(cartId);
+  }
 }
