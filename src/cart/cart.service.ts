@@ -12,6 +12,8 @@ import { AddCartDto } from './dto/add-cart.dto';
 import { ProductsService } from 'src/products/products.service';
 import { ItemService } from 'src/item/item.service';
 import { VariantService } from 'src/variant/variant.service';
+import { UpdateCartDto } from './dto/update-cart.dto';
+import { UpdateCartAction } from './enum/update-cart-action.enum';
 
 @Injectable()
 export class CartService {
@@ -22,10 +24,15 @@ export class CartService {
     private variantService: VariantService,
   ) {}
 
-  async validateCart(userId: string) {
-    const fcart = await this.cartModel
-      .findOne({ userId })
-      .populate({ path: 'items' });
+  async validateCart(id: string, cartId: string) {
+    let fcart;
+    if (cartId) {
+      fcart = await this.cartModel.findById(cartId).populate({ path: 'items' });
+    } else {
+      fcart = await this.cartModel
+        .findOne({ userId: id })
+        .populate({ path: 'items' });
+    }
 
     if (!fcart) return;
 
@@ -51,7 +58,7 @@ export class CartService {
 
   async getCart(user: JwtPayload): Promise<Cart> {
     try {
-      let cart = await this.validateCart(user._id);
+      let cart = await this.validateCart(user._id, null);
 
       if (!cart) {
         const cartData = {
@@ -132,7 +139,7 @@ export class CartService {
   async addCart(addCartDto: AddCartDto, user: JwtPayload): Promise<Cart> {
     const { productId, variantId, quantity } = addCartDto;
 
-    const cart = await this.validateCart(user._id);
+    const cart = await this.validateCart(user._id, null);
 
     const product = await this.productService.getProduct(productId);
 
@@ -237,5 +244,50 @@ export class CartService {
       ]);
       // let data = await cart.save();
     }
+  }
+
+  async updateCart(
+    updateCartDto: UpdateCartDto,
+    updateAction: UpdateCartAction,
+  ): Promise<Cart> {
+    const { cartId, itemId } = updateCartDto;
+
+    const cart = await this.validateCart(null, cartId);
+
+    const indexFound = cart.items.findIndex((item) => item._id == itemId);
+
+    const product = await this.productService.getProduct(
+      cart.items[indexFound].productId._id,
+    );
+
+    if (indexFound !== -1) {
+      let newItem;
+      if (updateAction === UpdateCartAction.INCREMENT) {
+        newItem = {
+          quantity: cart.items[indexFound].quantity + 1,
+          total: (cart.items[indexFound].quantity + 1) * product.price,
+        };
+      }
+      if (updateAction === UpdateCartAction.DECREMENT) {
+        newItem = {
+          quantity: cart.items[indexFound].quantity - 1,
+          total: (cart.items[indexFound].quantity - 1) * product.price,
+        };
+      }
+
+      const item = await this.itemService.updateItem(
+        cart.items[indexFound]._id,
+        newItem,
+      );
+
+      cart.items[indexFound].quantity = item.quantity;
+      cart.items[indexFound].total = item.total;
+
+      cart.subTotal = cart.items
+        .map((item) => item.total)
+        .reduce((acc, next) => acc + next);
+    }
+
+    return cart.save();
   }
 }
