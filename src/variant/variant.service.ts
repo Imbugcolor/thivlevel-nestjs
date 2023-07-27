@@ -28,4 +28,18 @@ export class VariantService {
     });
     return newVariant.save();
   }
+
+  async updateVariant(variant: VariantType): Promise<Variant> {
+    const { _id, size, color, inventory } = variant;
+    const newVariant = await this.variantModel.findByIdAndUpdate(_id, {
+      size,
+      color,
+      inventory,
+    });
+    return newVariant;
+  }
+
+  async deleteVariants(ids: any[]): Promise<any> {
+    return this.variantModel.deleteMany({ _id: { $in: ids } });
+  }
 }

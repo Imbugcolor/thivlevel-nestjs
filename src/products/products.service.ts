@@ -4,6 +4,7 @@ import { Product } from './products.schema';
 import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { VariantService } from 'src/variant/variant.service';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -64,5 +65,79 @@ export class ProductsService {
     );
 
     return newProduct.save();
+  }
+
+  async updateProduct(
+    id: string,
+    updateProductDto: UpdateProductDto,
+  ): Promise<Product> {
+    const oldProduct = await this.productModel.findById(id);
+
+    const { title, description, content, price, images, category, variants } =
+      updateProductDto;
+
+    await this.productModel.findByIdAndUpdate(
+      id,
+      {
+        title,
+        description,
+        content,
+        price,
+        images,
+        category,
+      },
+      { new: true },
+    );
+
+    // Remove variants in variants schema if it removed in variants field of products schema
+    const ids: any[] = [];
+    variants.map((item) => {
+      if (item._id) {
+        return ids.push(item._id);
+      }
+    });
+
+    const removeVariants = oldProduct.variants.filter(
+      (item) => !ids.includes(item.toString()),
+    );
+
+    oldProduct.variants = oldProduct.variants.filter(
+      (item) => !removeVariants.includes(item),
+    );
+
+    await oldProduct.save();
+
+    await this.variantService.deleteVariants(removeVariants);
+
+    // Update Variants - Add new Variants
+    await Promise.all(
+      variants.map(async (item) => {
+        if (!item._id) {
+          const newVariant = await this.variantService.createVariant(item);
+
+          await this.productModel.findByIdAndUpdate(
+            id,
+            {
+              $push: {
+                variants: newVariant,
+              },
+            },
+            { new: true },
+          );
+        } else {
+          const variant = {
+            _id: item._id,
+            size: item.size,
+            color: item.color,
+            inventory: item.inventory,
+          };
+          await this.variantService.updateVariant(variant);
+        }
+      }),
+    );
+
+    const product = await this.getProduct(id);
+
+    return product;
   }
 }

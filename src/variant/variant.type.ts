@@ -2,6 +2,8 @@ import { IsNotEmpty, IsNumber } from 'class-validator';
 import mongoose from 'mongoose';
 
 export class VariantType {
+  _id?: string;
+
   @IsNotEmpty()
   size: string;
 
@@ -12,5 +14,5 @@ export class VariantType {
   inventory: number;
 
   @IsNotEmpty()
-  productId: mongoose.Types.ObjectId;
+  productId?: mongoose.Types.ObjectId;
 }
