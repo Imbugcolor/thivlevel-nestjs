@@ -1,8 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose from 'mongoose';
+import { User } from 'src/user/user.schema';
 
 @Schema({ timestamps: true })
 export class Review {
+  _id?: mongoose.Types.ObjectId;
   @Prop({ required: true })
   rating: number;
 
@@ -10,9 +12,12 @@ export class Review {
   comment: string;
 
   @Prop({
-    type: [{ type: mongoose.Types.ObjectId, ref: 'user', required: true }],
+    type: [{ type: mongoose.Types.ObjectId, ref: User.name, required: true }],
   })
-  user: mongoose.Types.ObjectId;
+  user: User;
+
+  @Prop({ required: true })
+  productId: string;
 }
 
 export const ReviewSchema = SchemaFactory.createForClass(Review);

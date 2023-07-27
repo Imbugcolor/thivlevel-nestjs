@@ -1,16 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './products.schema';
 import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { VariantService } from 'src/variant/variant.service';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Review } from 'src/review/review.schema';
+import { ReviewService } from 'src/review/review.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<Product>,
     private variantService: VariantService,
+    @Inject(forwardRef(() => ReviewService))
+    private reviewService: ReviewService,
   ) {}
 
   async getProduct(id: string): Promise<Product> {
@@ -22,9 +31,23 @@ export class ProductsService {
   }
 
   async getProducts(): Promise<Product[]> {
-    return this.productModel
-      .find()
-      .populate('variants', 'size color inventory productId');
+    return this.productModel.find().populate([
+      {
+        path: 'variants',
+        select: 'size color inventory productId',
+      },
+      {
+        path: 'reviews',
+        select: 'rating comment user productId',
+      },
+      {
+        path: 'reviews',
+        populate: {
+          path: 'user',
+          select: 'username avatar',
+        },
+      },
+    ]);
   }
 
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
@@ -137,6 +160,25 @@ export class ProductsService {
     );
 
     const product = await this.getProduct(id);
+
+    return product;
+  }
+
+  async addReview(id: string, review: Review): Promise<Product> {
+    const product = await this.productModel
+      .findById(id)
+      .populate('reviews', 'rating');
+
+    const ids = product.reviews;
+    const reviews = await this.reviewService.getReviews(ids);
+
+    product.reviews.push(review);
+    product.numReviews = reviews.length + 1;
+    product.rating =
+      (reviews.reduce((acc, item) => item.rating + acc, 0) + review.rating) /
+      (reviews.length + 1);
+
+    await product.save();
 
     return product;
   }

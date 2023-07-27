@@ -8,6 +8,7 @@ import { Cart } from './cart.schema';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartAction } from './enum/update-cart-action.enum';
 import { DeleteItemDto } from './dto/delete-item-cart.dto';
+import { User } from 'src/user/user.schema';
 
 @Controller('cart')
 export class CartController {
@@ -15,7 +16,7 @@ export class CartController {
 
   @Get()
   @UseGuards(AccessTokenGuard)
-  getCart(@GetUser() user: JwtPayload): Promise<Cart> {
+  getCart(@GetUser() user: User): Promise<Cart> {
     return this.cartService.getCart(user);
   }
 
@@ -23,7 +24,7 @@ export class CartController {
   @UseGuards(AccessTokenGuard)
   addCart(
     @Body() addCartDto: AddCartDto,
-    @GetUser() user: JwtPayload,
+    @GetUser() user: User,
   ): Promise<Cart> {
     return this.cartService.addCart(addCartDto, user);
   }

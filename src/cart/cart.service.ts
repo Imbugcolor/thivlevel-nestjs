@@ -7,7 +7,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cart } from './cart.schema';
 import { Model } from 'mongoose';
 import { CreateCartDto } from './dto/create-cart.dto';
-import { JwtPayload } from 'src/user/auth/jwt-payload.interface';
 import { AddCartDto } from './dto/add-cart.dto';
 import { ProductsService } from 'src/products/products.service';
 import { ItemService } from 'src/item/item.service';
@@ -15,6 +14,7 @@ import { VariantService } from 'src/variant/variant.service';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartAction } from './enum/update-cart-action.enum';
 import { DeleteItemDto } from './dto/delete-item-cart.dto';
+import { User } from 'src/user/user.schema';
 
 @Injectable()
 export class CartService {
@@ -25,7 +25,7 @@ export class CartService {
     private variantService: VariantService,
   ) {}
 
-  async validateCart(id: string, cartId: string) {
+  async validateCart(id: any, cartId: string) {
     let fcart;
     if (cartId) {
       fcart = await this.cartModel.findById(cartId).populate({ path: 'items' });
@@ -57,13 +57,13 @@ export class CartService {
     return newCart.save();
   }
 
-  async getCart(user: JwtPayload): Promise<Cart> {
+  async getCart(user: User): Promise<Cart> {
     try {
       let cart = await this.validateCart(user._id, null);
 
       if (!cart) {
         const cartData = {
-          userId: user._id,
+          userId: user._id.toString(),
           items: [],
           subTotal: 0,
         };
@@ -137,7 +137,7 @@ export class CartService {
     }
   }
 
-  async addCart(addCartDto: AddCartDto, user: JwtPayload): Promise<Cart> {
+  async addCart(addCartDto: AddCartDto, user: User): Promise<Cart> {
     const { productId, variantId, quantity } = addCartDto;
 
     const cart = await this.validateCart(user._id, null);
@@ -227,7 +227,7 @@ export class CartService {
     else {
       const item = await this.itemService.createItem(newItem);
       const cartData = {
-        userId: user._id,
+        userId: user._id.toString(),
         items: [item],
         subTotal: Number(product.price * quantity),
       };

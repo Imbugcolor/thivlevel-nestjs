@@ -41,8 +41,11 @@ export class Product {
   @Prop({ default: 0 })
   sold: number;
 
-  @Prop({ default: [] })
-  reviews: [Review];
+  @Prop({
+    type: [{ type: mongoose.Types.ObjectId, ref: Review.name }],
+    default: [],
+  })
+  reviews: Review[];
 
   @Prop({ default: 0 })
   rating: number;
