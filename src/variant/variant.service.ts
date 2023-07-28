@@ -42,4 +42,8 @@ export class VariantService {
   async deleteVariants(ids: any[]): Promise<any> {
     return this.variantModel.deleteMany({ _id: { $in: ids } });
   }
+
+  async getVariantsByQuery(query: any): Promise<any> {
+    return this.variantModel.find(query);
+  }
 }

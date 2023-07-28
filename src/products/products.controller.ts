@@ -5,6 +5,8 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
@@ -15,14 +17,15 @@ import { Role } from 'src/user/role.enum';
 import { RolesGuard } from 'src/user/auth/roles.guard';
 import { AccessTokenGuard } from 'src/user/auth/accessToken.guard';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Request } from 'express';
 
 @Controller('products')
 export class ProductsController {
   constructor(private productService: ProductsService) {}
 
   @Get()
-  async getProducts(): Promise<Product[]> {
-    return this.productService.getProducts();
+  async getProducts(@Req() req: Request): Promise<Product[]> {
+    return this.productService.getProducts(req);
   }
 
   @Post()

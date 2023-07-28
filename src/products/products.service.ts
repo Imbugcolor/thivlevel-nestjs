@@ -12,6 +12,8 @@ import { VariantService } from 'src/variant/variant.service';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Review } from 'src/review/review.schema';
 import { ReviewService } from 'src/review/review.service';
+import { Request } from 'express';
+import { APIfeatures } from 'src/utils/ApiFeatures';
 
 @Injectable()
 export class ProductsService {
@@ -30,8 +32,40 @@ export class ProductsService {
     return product;
   }
 
-  async getProducts(): Promise<Product[]> {
-    return this.productModel.find().populate([
+  async getProducts(req: Request): Promise<any> {
+    const variant_ids: string[] = [];
+    if (req.query.sizes) {
+      const sizesArray = (req.query.sizes as string).split(',');
+
+      const variantsArr = await this.variantService.getVariantsByQuery({
+        size: { $in: sizesArray },
+      });
+      variantsArr.forEach((item) => {
+        return variant_ids.push(item._id);
+      });
+    }
+
+    const record = new APIfeatures(
+      this.productModel.find(
+        req.query.sizes && { variants: { $in: variant_ids } },
+      ),
+      req.query,
+    )
+      .filtering()
+      .sorting();
+    const total = await record.query;
+
+    const features = new APIfeatures(
+      this.productModel.find(
+        req.query.sizes && { variants: { $in: variant_ids } },
+      ),
+      req.query,
+    )
+      .filtering()
+      .sorting()
+      .pagination();
+
+    const products = await features.query.populate([
       {
         path: 'variants',
         select: 'size color inventory productId',
@@ -48,6 +82,11 @@ export class ProductsService {
         },
       },
     ]);
+
+    return {
+      result: total.length,
+      data: products,
+    };
   }
 
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
