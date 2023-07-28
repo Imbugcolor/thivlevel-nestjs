@@ -221,4 +221,8 @@ export class ProductsService {
 
     return product;
   }
+
+  async updateSold(id: string, sold: number): Promise<Product> {
+    return this.productModel.findByIdAndUpdate(id, { sold });
+  }
 }

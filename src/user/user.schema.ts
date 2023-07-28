@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { UserGender } from './user-gender.enum';
 import { UserTypeLogin } from './user-type-login.enum';
-import { AddressType } from './address.type';
+import { AddressType } from '../utils/address.type';
 import { Role } from './role.enum';
 
 @Schema({ timestamps: true })
