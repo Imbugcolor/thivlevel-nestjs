@@ -30,16 +30,19 @@
     "@types/passport-jwt": "^3.0.9",
     "argon2": "^0.30.3",
     "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "cookie-parser": "^1.4.6",
     "mongoose": "^7.4.0",
+    "nestjs-stripe": "^1.0.0",
     "passport": "^0.6.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "stripe": "^12.16.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

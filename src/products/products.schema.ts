@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Category } from 'src/category/category.schema';
 import { Review } from 'src/review/review.schema';
 import { Variant } from 'src/variant/variant.schema';
+import { ImageType } from './type/image.type';
 
 @Schema({ timestamps: true })
 export class Product {
@@ -22,7 +23,7 @@ export class Product {
   price: number;
 
   @Prop({ required: true })
-  images: [];
+  images: ImageType[];
 
   @Prop({
     type: mongoose.Types.ObjectId,

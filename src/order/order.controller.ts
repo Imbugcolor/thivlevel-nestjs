@@ -3,8 +3,7 @@ import { OrderService } from './order.service';
 import { AccessTokenGuard } from 'src/user/auth/accessToken.guard';
 import { GetUser } from 'src/user/auth/get-user.decorator';
 import { User } from 'src/user/user.schema';
-import { CreateCodOrderDto } from './dto/create-cod-order.dto';
-
+import { CreateOrderDto } from './dto/create-order.dto';
 @Controller('order')
 export class OrderController {
   constructor(private orderService: OrderService) {}
@@ -12,9 +11,18 @@ export class OrderController {
   @Post('/create-cod-order')
   @UseGuards(AccessTokenGuard)
   createCodOrder(
-    @Body() createCodOrderDto: CreateCodOrderDto,
+    @Body() createOrderDto: CreateOrderDto,
     @GetUser() user: User,
   ) {
-    return this.orderService.createCodOrder(createCodOrderDto, user);
+    return this.orderService.createCodOrder(createOrderDto, user);
+  }
+
+  @Post('/create-checkout-session')
+  @UseGuards(AccessTokenGuard)
+  createCheckoutSession(
+    @Body() createOrderDto: CreateOrderDto,
+    @GetUser() user: User,
+  ) {
+    return this.orderService.createCheckout(createOrderDto, user);
   }
 }
