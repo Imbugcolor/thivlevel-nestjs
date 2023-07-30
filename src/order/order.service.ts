@@ -27,6 +27,17 @@ export class OrderService {
     private configService: ConfigService,
   ) {}
 
+  async validateItem(id: string, quantity: number) {
+    const variant = await this.variantService.validateVariant(id);
+
+    if (variant.inventory - quantity < 0) {
+      throw new BadRequestException(
+        `Inventory quantity product variant id: ${variant._id} is not enough.`,
+      );
+    }
+    return;
+  }
+
   async createCodOrder(
     createOrderDto: CreateOrderDto,
     user: User,
@@ -34,9 +45,16 @@ export class OrderService {
     const { items, name, phone, address } = createOrderDto;
     const { email } = user;
 
+    //Check item valid before place order
+    await Promise.all(
+      items.map(async (item) => {
+        await this.validateItem(item.variantId, item.quantity);
+      }),
+    );
+
     const newItems = await Promise.all(
-      items.map(async (item, index) => {
-        await this.inventoryCount(item.variantId, item.quantity, items, index);
+      items.map(async (item) => {
+        await this.inventoryCount(item.variantId, item.quantity);
         const product = await this.productService.getProduct(item.productId);
         const variant = await this.variantService.validateVariant(
           item.variantId,
@@ -74,6 +92,14 @@ export class OrderService {
   // Create Checkout Session = Stripe to Payment
   async createCheckout(createOrderDto: CreateOrderDto, user: User) {
     const { items, name, phone, address } = createOrderDto;
+
+    //Check item valid before place order
+    await Promise.all(
+      items.map(async (item) => {
+        await this.validateItem(item.variantId, item.quantity);
+      }),
+    );
+
     const newItems = await Promise.all(
       items.map(async (item) => {
         const product = await this.productService.getProduct(item.productId);
@@ -169,8 +195,8 @@ export class OrderService {
     const address = JSON.parse(customer.metadata.address);
 
     const newItems = await Promise.all(
-      items.map(async (item, index) => {
-        await this.inventoryCount(item.variantId, item.quantity, items, index);
+      items.map(async (item) => {
+        await this.inventoryCount(item.variantId, item.quantity);
         const product = await this.productService.getProduct(item.productId);
         const variant = await this.variantService.validateVariant(
           item.variantId,
@@ -231,17 +257,7 @@ export class OrderService {
     await this.productService.updateSold(id, newSold);
   }
 
-  async inventoryCount(
-    id: string,
-    quantity: number,
-    items: OrderItem[],
-    index: number,
-  ) {
-    await this.variantService.validateVariant(id);
-
-    // const inStock = variant.inventory;
-    // const inventory = inStock - quantity;
-
-    await this.variantService.updateInventory(id, quantity, items, index);
+  async inventoryCount(id: string, quantity: number) {
+    await this.variantService.updateInventory(id, quantity);
   }
 }
