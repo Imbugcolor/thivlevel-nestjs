@@ -35,8 +35,8 @@ export class OrderService {
     const { email } = user;
 
     const newItems = await Promise.all(
-      items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity);
+      items.map(async (item, index) => {
+        await this.inventoryCount(item.variantId, item.quantity, items, index);
         const product = await this.productService.getProduct(item.productId);
         const variant = await this.variantService.validateVariant(
           item.variantId,
@@ -61,7 +61,7 @@ export class OrderService {
       address,
       items: newItems,
       total: items.reduce((acc, curr) => {
-        return acc + curr.total;
+        return acc + curr.price * curr.quantity;
       }, 0),
       method: OrderMethod.COD,
     });
@@ -169,8 +169,8 @@ export class OrderService {
     const address = JSON.parse(customer.metadata.address);
 
     const newItems = await Promise.all(
-      items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity);
+      items.map(async (item, index) => {
+        await this.inventoryCount(item.variantId, item.quantity, items, index);
         const product = await this.productService.getProduct(item.productId);
         const variant = await this.variantService.validateVariant(
           item.variantId,
@@ -231,12 +231,17 @@ export class OrderService {
     await this.productService.updateSold(id, newSold);
   }
 
-  async inventoryCount(id: string, quantity: number) {
-    const variant = await this.variantService.validateVariant(id);
+  async inventoryCount(
+    id: string,
+    quantity: number,
+    items: OrderItem[],
+    index: number,
+  ) {
+    await this.variantService.validateVariant(id);
 
-    const inStock = variant.inventory;
-    const inventory = inStock - quantity;
+    // const inStock = variant.inventory;
+    // const inventory = inStock - quantity;
 
-    await this.variantService.updateInventory(id, inventory);
+    await this.variantService.updateInventory(id, quantity, items, index);
   }
 }
