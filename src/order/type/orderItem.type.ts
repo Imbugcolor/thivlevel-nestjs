@@ -3,5 +3,4 @@ export type OrderItem = {
   quantity: number;
   price: number;
   variantId: string;
-  total: number;
 };

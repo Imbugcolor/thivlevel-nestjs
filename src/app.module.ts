@@ -19,6 +19,8 @@ import { RawBodyMiddleware } from './middleware/raw-body.middleware';
 import { JsonBodyMiddleware } from './middleware/json-body.middleware';
 import { StripeWebhookController } from './stripe-webhook/stripe-webhook.controller';
 import { StripeWebhookModule } from './stripe-webhook/stripe-webhook.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { StripeWebhookModule } from './stripe-webhook/stripe-webhook.module';
       }),
     }),
     StripeWebhookModule,
+    CloudinaryModule,
+    UploadModule,
   ],
   controllers: [StripeWebhookController],
 })

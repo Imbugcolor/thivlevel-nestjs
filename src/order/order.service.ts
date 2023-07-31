@@ -38,6 +38,10 @@ export class OrderService {
     return;
   }
 
+  async getOrdersByUser(user: User): Promise<Order[]> {
+    return this.orderModel.find({ user: user._id });
+  }
+
   async createCodOrder(
     createOrderDto: CreateOrderDto,
     user: User,
