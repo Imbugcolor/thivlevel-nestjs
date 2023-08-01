@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Req,
   Res,
@@ -21,10 +22,13 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Post('/register')
-  register(
-    @Body() registerDto: RegisterDto,
-  ): Promise<{ msg: string; user: User }> {
+  register(@Body() registerDto: RegisterDto): Promise<{ msg: string }> {
     return this.userService.register(registerDto);
+  }
+
+  @Get('/active/:token')
+  activeAccount(@Param('token') token: string) {
+    return this.userService.activeAccount(token);
   }
 
   @Post('/login')

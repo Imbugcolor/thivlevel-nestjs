@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
-import { UserGender } from './user-gender.enum';
-import { UserTypeLogin } from './user-type-login.enum';
+import { UserGender } from './enum/user-gender.enum';
+import { UserTypeLogin } from './enum/user-type-login.enum';
 import { AddressType } from '../utils/address.type';
-import { Role } from './role.enum';
+import { Role } from './enum/role.enum';
 
 @Schema({ timestamps: true })
 export class User extends Document {

@@ -42,4 +42,22 @@ export class CloudinaryService {
       images,
     };
   }
+
+  async destroyFile(public_id: string) {
+    cloudinary.uploader.destroy(public_id, async (err, result) => {
+      if (err) throw new BadRequestException();
+      return `Deleted image public_id: ${public_id}`;
+    });
+  }
+
+  async destroyFiles(public_ids: string[]) {
+    await Promise.all(
+      public_ids.map(async (id) => {
+        await this.destroyFile(id);
+      }),
+    );
+    return {
+      msg: 'Delete success!',
+    };
+  }
 }

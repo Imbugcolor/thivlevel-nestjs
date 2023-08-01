@@ -14,7 +14,8 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
-import { UserTypeLogin } from './user-type-login.enum';
+import { UserTypeLogin } from './enum/user-type-login.enum';
+import { SendmailService } from 'src/sendmail/sendmail.service';
 
 @Injectable()
 export class UserService {
@@ -22,6 +23,7 @@ export class UserService {
     @InjectModel(User.name) private userModel: Model<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private sendmailService: SendmailService,
   ) {}
 
   async getUser(id: string): Promise<User> {
@@ -29,22 +31,39 @@ export class UserService {
     return user;
   }
 
-  async register(
-    registerDto: RegisterDto,
-  ): Promise<{ msg: string; user: User }> {
+  async register(registerDto: RegisterDto): Promise<{ msg: string }> {
     const { username, email, password } = registerDto;
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = new this.userModel({
-      username,
-      email,
-      password: hashedPassword,
+    const newUser = { username, email, password: hashedPassword };
+
+    const active_token = await this.getActiveToken(newUser);
+
+    const url = `${this.configService.get(
+      'BASE_URL',
+    )}/user/active/${active_token}`;
+
+    this.sendmailService.sendMail(email, url, 'Verify your email address.');
+    return { msg: 'Success! Pls check your email.' };
+  }
+
+  async activeAccount(token: string) {
+    const decoded = this.jwtService.verify(token, {
+      secret: this.configService.get<string>('JWT_ACTIVE_TOKEN_SECRET'),
     });
 
+    const { user } = decoded;
+
+    if (!user) {
+      throw new UnauthorizedException('Please check your credentials.');
+    }
+
+    const newUser = new this.userModel(user);
+
     try {
-      await user.save();
+      await newUser.save();
     } catch (error) {
       if (error.code === 11000) {
         //duplicate username
@@ -54,7 +73,7 @@ export class UserService {
       }
     }
     return {
-      msg: 'Register Success!',
+      msg: 'Account has been activated!',
       user: { ...user._doc, password: '' },
     };
   }
@@ -104,6 +123,20 @@ export class UserService {
     await this.userModel.findByIdAndUpdate(userId, {
       rf_token: hashedRefreshToken,
     });
+  }
+
+  async getActiveToken(user) {
+    const activeToken = this.jwtService.sign(
+      {
+        user,
+      },
+      {
+        secret: this.configService.get<string>('JWT_ACTIVE_TOKEN_SECRET'),
+        expiresIn: '5m',
+      },
+    );
+
+    return activeToken;
   }
 
   async getAccessToken(userId: string) {

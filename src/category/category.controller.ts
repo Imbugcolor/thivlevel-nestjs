@@ -5,7 +5,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { AccessTokenGuard } from 'src/user/auth/accessToken.guard';
 import { RolesGuard } from 'src/user/auth/roles.guard';
 import { Roles } from 'src/user/auth/roles.decorator';
-import { Role } from 'src/user/role.enum';
+import { Role } from 'src/user/enum/role.enum';
 
 @Controller('category')
 export class CategoryController {

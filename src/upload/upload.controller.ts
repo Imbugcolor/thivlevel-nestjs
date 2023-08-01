@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Post,
   UploadedFile,
@@ -22,5 +23,10 @@ export class UploadController {
   @UseInterceptors(FilesInterceptor('files', 5))
   uploadImages(@UploadedFiles() files: Express.Multer.File[]) {
     return this.cloudinaryService.uploadFiles(files);
+  }
+
+  @Post('destroy')
+  destroyImages(@Body('public_ids') public_ids: string[]) {
+    return this.cloudinaryService.destroyFiles(public_ids);
   }
 }

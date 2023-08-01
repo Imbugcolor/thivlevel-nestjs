@@ -21,6 +21,8 @@ import { StripeWebhookController } from './stripe-webhook/stripe-webhook.control
 import { StripeWebhookModule } from './stripe-webhook/stripe-webhook.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { UploadModule } from './upload/upload.module';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { SendmailModule } from './sendmail/sendmail.module';
 
 @Module({
   imports: [
@@ -53,6 +55,22 @@ import { UploadModule } from './upload/upload.module';
     StripeWebhookModule,
     CloudinaryModule,
     UploadModule,
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        transport: {
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false, // true for 465, false for other ports
+          auth: {
+            user: configService.get('MAIL_USERNAME'),
+            pass: configService.get('MAIL_PASSWORD_APP'),
+          },
+        },
+      }),
+    }),
+    SendmailModule,
   ],
   controllers: [StripeWebhookController],
 })

@@ -9,13 +9,14 @@ import { JwtStrategy } from './auth/jwt.strategy';
 import { JwtRefreshTokenStrategy } from './auth/jwt-refresh-token-strategy';
 import { GoogleStrategy } from './auth/google.strategy';
 import { GithubStrategy } from './auth/github.strategy';
-import { RolesGuard } from './auth/roles.guard';
+import { SendmailModule } from 'src/sendmail/sendmail.module';
 
 @Module({
   imports: [
     ConfigModule,
     JwtModule.register({}),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    SendmailModule,
   ],
   providers: [
     UserService,
