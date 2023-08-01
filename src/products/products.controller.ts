@@ -18,14 +18,20 @@ import { RolesGuard } from 'src/user/auth/roles.guard';
 import { AccessTokenGuard } from 'src/user/auth/accessToken.guard';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Request } from 'express';
+import { ProductsDataResponse } from './type/productsDataResponse.type';
 
 @Controller('products')
 export class ProductsController {
   constructor(private productService: ProductsService) {}
 
   @Get()
-  async getProducts(@Req() req: Request): Promise<Product[]> {
+  async getProducts(@Req() req: Request): Promise<ProductsDataResponse> {
     return this.productService.getProducts(req);
+  }
+
+  @Get('/:id')
+  async getProduct(@Param('id') id: string): Promise<Product> {
+    return this.productService.getProduct(id);
   }
 
   @Post()

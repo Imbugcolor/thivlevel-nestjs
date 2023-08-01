@@ -20,7 +20,7 @@ export class ReviewService {
   ): Promise<Review> {
     const { rating, comment, productId } = createReviewDto;
 
-    await this.productService.getProduct(productId);
+    await this.productService.validateProduct(productId);
 
     const review = new this.reviewModel({
       rating,

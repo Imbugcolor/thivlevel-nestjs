@@ -142,7 +142,7 @@ export class CartService {
 
     const cart = await this.validateCart(user._id, null);
 
-    const product = await this.productService.getProduct(productId);
+    const product = await this.productService.validateProduct(productId);
 
     await this.variantService.validateVariant(variantId);
 
@@ -270,7 +270,7 @@ export class CartService {
           `Quantity must be greater than 1`,
         );
       }
-      const product = await this.productService.getProduct(
+      const product = await this.productService.validateProduct(
         cart.items[indexFound].productId._id,
       );
 

@@ -14,6 +14,7 @@ import { Review } from 'src/review/review.schema';
 import { ReviewService } from 'src/review/review.service';
 import { Request } from 'express';
 import { APIfeatures } from 'src/utils/ApiFeatures';
+import { ProductsDataResponse } from './type/productsDataResponse.type';
 
 @Injectable()
 export class ProductsService {
@@ -24,7 +25,7 @@ export class ProductsService {
     private reviewService: ReviewService,
   ) {}
 
-  async getProduct(id: string): Promise<Product> {
+  async validateProduct(id: string): Promise<Product> {
     const product = await this.productModel.findById(id);
     if (!product) {
       throw new NotFoundException(`Product id: ${id} is not exist.`);
@@ -32,7 +33,31 @@ export class ProductsService {
     return product;
   }
 
-  async getProducts(req: Request): Promise<any> {
+  async getProduct(id: string): Promise<Product> {
+    const product = await this.productModel.findById(id).populate([
+      {
+        path: 'variants',
+        select: 'size color inventory productId',
+      },
+      {
+        path: 'reviews',
+        select: 'rating comment user productId',
+      },
+      {
+        path: 'reviews',
+        populate: {
+          path: 'user',
+          select: 'username avatar',
+        },
+      },
+    ]);
+    if (!product) {
+      throw new NotFoundException(`Product id: ${id} is not exist.`);
+    }
+    return product;
+  }
+
+  async getProducts(req: Request): Promise<ProductsDataResponse> {
     const variant_ids: string[] = [];
     if (req.query.sizes) {
       const sizesArray = (req.query.sizes as string).split(',');
@@ -84,8 +109,11 @@ export class ProductsService {
     ]);
 
     return {
-      result: total.length,
-      data: products,
+      total: total.length,
+      data: {
+        length: products.length,
+        products,
+      },
     };
   }
 

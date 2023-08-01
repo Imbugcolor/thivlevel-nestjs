@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Order } from './order.schema';
 import { Model } from 'mongoose';
@@ -14,6 +18,8 @@ import Stripe from 'stripe';
 import { Request } from 'express';
 import { UserService } from 'src/user/user.service';
 import { ConfigService } from '@nestjs/config';
+import { APIfeatures } from 'src/utils/ApiFeatures';
+import { OrdersDataResponse } from './type/ordersDataResponse.type';
 
 @Injectable()
 export class OrderService {
@@ -38,8 +44,46 @@ export class OrderService {
     return;
   }
 
-  async getOrdersByUser(user: User): Promise<Order[]> {
-    return this.orderModel.find({ user: user._id });
+  async getOrdersByUser(user: User, req: Request): Promise<OrdersDataResponse> {
+    const totalFeatures = new APIfeatures(
+      this.orderModel.find({ user: user._id.toString() }),
+      req.query,
+    )
+      .filtering()
+      .sorting();
+
+    const total = await totalFeatures.query;
+
+    const ordersFeatures = new APIfeatures(
+      this.orderModel.find({ user: user._id.toString() }),
+      req.query,
+    )
+      .filtering()
+      .sorting()
+      .pagination();
+
+    const orders = await ordersFeatures.query;
+
+    return {
+      total: total.length,
+      data: {
+        length: orders.length,
+        orders,
+      },
+    };
+  }
+
+  async getUserOrder(id: string, user: User): Promise<Order> {
+    const order = await this.orderModel.findOne({
+      _id: id,
+      user: user._id.toString(),
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ID: ${id} is not found.`);
+    }
+
+    return order;
   }
 
   async createCodOrder(
@@ -59,7 +103,9 @@ export class OrderService {
     const newItems = await Promise.all(
       items.map(async (item) => {
         await this.inventoryCount(item.variantId, item.quantity);
-        const product = await this.productService.getProduct(item.productId);
+        const product = await this.productService.validateProduct(
+          item.productId,
+        );
         const variant = await this.variantService.validateVariant(
           item.variantId,
         );
@@ -106,7 +152,9 @@ export class OrderService {
 
     const newItems = await Promise.all(
       items.map(async (item) => {
-        const product = await this.productService.getProduct(item.productId);
+        const product = await this.productService.validateProduct(
+          item.productId,
+        );
         const variant = await this.variantService.validateVariant(
           item.variantId,
         );
@@ -201,7 +249,9 @@ export class OrderService {
     const newItems = await Promise.all(
       items.map(async (item) => {
         await this.inventoryCount(item.variantId, item.quantity);
-        const product = await this.productService.getProduct(item.productId);
+        const product = await this.productService.validateProduct(
+          item.productId,
+        );
         const variant = await this.variantService.validateVariant(
           item.variantId,
         );
@@ -253,7 +303,7 @@ export class OrderService {
   }
 
   async updateNewSold(id: string, quantity: number) {
-    const product = await this.productService.getProduct(id);
+    const product = await this.productService.validateProduct(id);
 
     const oldSold = product.sold;
 
