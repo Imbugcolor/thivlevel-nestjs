@@ -47,9 +47,13 @@ export class VariantService {
     return this.variantModel.find(query);
   }
 
-  async updateInventory(id: string, quantity: number): Promise<Variant> {
+  async updateInventory(
+    id: string,
+    quantity: number,
+    resold: boolean,
+  ): Promise<Variant> {
     const newVariant = await this.variantModel.findByIdAndUpdate(id, {
-      $inc: { inventory: -quantity },
+      $inc: { inventory: resold ? quantity : -quantity },
     });
     return newVariant;
   }

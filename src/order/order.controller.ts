@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -14,6 +15,11 @@ import { User } from 'src/user/user.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Request } from 'express';
 import { OrdersDataResponse } from './type/ordersDataResponse.type';
+import { RolesGuard } from 'src/user/auth/roles.guard';
+import { Roles } from 'src/user/auth/roles.decorator';
+import { Role } from 'src/user/enum/role.enum';
+import { OrderStatus } from './enum/order-status.enum';
+import { Order } from './order.schema';
 @Controller('order')
 export class OrderController {
   constructor(private orderService: OrderService) {}
@@ -29,7 +35,10 @@ export class OrderController {
 
   @Get('/:id')
   @UseGuards(AccessTokenGuard)
-  getOrderByUser(@Param('id') id: string, @GetUser() user: User) {
+  getOrderByUser(
+    @Param('id') id: string,
+    @GetUser() user: User,
+  ): Promise<Order> {
     return this.orderService.getUserOrder(id, user);
   }
 
@@ -49,5 +58,22 @@ export class OrderController {
     @GetUser() user: User,
   ) {
     return this.orderService.createCheckout(createOrderDto, user);
+  }
+
+  @Patch('/update-order-status/:id')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  updateOrderStatus(
+    @Param('id') id: string,
+    @Body('status')
+    status: OrderStatus,
+  ): Promise<Order> {
+    return this.orderService.updateOrderStatus(id, status);
+  }
+
+  @Patch('/cancel-order/:id')
+  @UseGuards(AccessTokenGuard)
+  cancelOrder(@Param('id') id: string, @GetUser() user: User): Promise<Order> {
+    return this.orderService.cancelOrder(id, user);
   }
 }

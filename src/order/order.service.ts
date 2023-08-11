@@ -20,6 +20,7 @@ import { UserService } from 'src/user/user.service';
 import { ConfigService } from '@nestjs/config';
 import { APIfeatures } from 'src/utils/ApiFeatures';
 import { OrdersDataResponse } from './type/ordersDataResponse.type';
+import { OrderStatus } from './enum/order-status.enum';
 
 @Injectable()
 export class OrderService {
@@ -102,7 +103,7 @@ export class OrderService {
 
     const newItems = await Promise.all(
       items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity);
+        await this.inventoryCount(item.variantId, item.quantity, false);
         const product = await this.productService.validateProduct(
           item.productId,
         );
@@ -134,7 +135,7 @@ export class OrderService {
       method: OrderMethod.COD,
     });
 
-    this.soldCount(items, 'productId');
+    this.soldCount(items, 'productId', false);
 
     return newOrder.save();
   }
@@ -248,7 +249,7 @@ export class OrderService {
 
     const newItems = await Promise.all(
       items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity);
+        await this.inventoryCount(item.variantId, item.quantity, false);
         const product = await this.productService.validateProduct(
           item.productId,
         );
@@ -278,12 +279,80 @@ export class OrderService {
       isPaid: true,
     });
 
-    this.soldCount(items, 'productId');
+    this.soldCount(items, 'productId', false);
 
     return newOrder.save();
   }
 
-  soldCount(array: OrderItem[], keyId: string) {
+  async updateOrderStatus(id: string, status: OrderStatus): Promise<any> {
+    const values = Object.values(OrderStatus);
+    if (!values.includes(status as unknown as OrderStatus)) {
+      return new BadRequestException(`status value is wrong.`);
+    }
+    const oldOrder = await this.orderModel.findById(id);
+
+    if (oldOrder.status === status) return oldOrder;
+
+    const newOrder = await this.orderModel.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true },
+    );
+
+    if (status === OrderStatus.CANCELED) {
+      const items = await Promise.all(
+        (newOrder.items as any).map(async (item) => {
+          await this.inventoryCount(item.variantId._id, item.quantity, true);
+          return {
+            ...item,
+            productId: item.productId._id,
+          };
+        }),
+      );
+
+      this.soldCount(items, 'productId', true);
+    }
+
+    return newOrder;
+  }
+
+  async cancelOrder(id: string, user: User): Promise<any> {
+    const oldOrder = await this.getUserOrder(id, user);
+
+    if (oldOrder.status === OrderStatus.CANCELED) {
+      return new BadRequestException(`The order: ${id} is already canceled.`);
+    }
+
+    if (
+      oldOrder.status === OrderStatus.SHIPPING ||
+      oldOrder.status === OrderStatus.DELIVERED ||
+      oldOrder.status === OrderStatus.COMPLETED
+    ) {
+      return new BadRequestException(`The order: ${id} could not canceled.`);
+    }
+
+    const newOrder = await this.orderModel.findByIdAndUpdate(
+      id,
+      { status: OrderStatus.CANCELED },
+      { new: true },
+    );
+
+    const items = await Promise.all(
+      (newOrder.items as any).map(async (item) => {
+        await this.inventoryCount(item.variantId._id, item.quantity, true);
+        return {
+          ...item,
+          productId: item.productId._id,
+        };
+      }),
+    );
+
+    this.soldCount(items, 'productId', true);
+
+    return newOrder;
+  }
+
+  soldCount(array: OrderItem[], keyId: string, resold: boolean) {
     const groupBy = function (xs: any[], id: string) {
       return xs.reduce(function (rv: any, x: any) {
         (rv[x[id]] = rv[x[id]] || []).push(x);
@@ -298,20 +367,27 @@ export class OrderService {
       const sumQuantity = groupById[id].reduce((acc: number, curr: any) => {
         return acc + curr.quantity;
       }, 0);
-      return this.updateNewSold(id, sumQuantity);
+      return this.updateNewSold(id, sumQuantity, resold);
     });
   }
 
-  async updateNewSold(id: string, quantity: number) {
+  async updateNewSold(id: string, quantity: number, resold: boolean) {
     const product = await this.productService.validateProduct(id);
 
     const oldSold = product.sold;
 
-    const newSold = oldSold + quantity;
+    let newSold: number;
+
+    if (resold) {
+      newSold = oldSold - quantity;
+    } else {
+      newSold = oldSold + quantity;
+    }
+
     await this.productService.updateSold(id, newSold);
   }
 
-  async inventoryCount(id: string, quantity: number) {
-    await this.variantService.updateInventory(id, quantity);
+  async inventoryCount(id: string, quantity: number, resold: boolean) {
+    await this.variantService.updateInventory(id, quantity, resold);
   }
 }
