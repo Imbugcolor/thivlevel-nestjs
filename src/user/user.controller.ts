@@ -1,12 +1,15 @@
 import {
   Body,
+  ClassSerializerInterceptor,
   Controller,
   Get,
   Param,
   Post,
   Req,
   Res,
+  SerializeOptions,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.schema';
@@ -14,10 +17,10 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenGuard } from './auth/refreshToken.guard';
 import { Request, Response } from 'express';
-import { AuthGuard } from '@nestjs/passport';
 import { AccessTokenGuard } from './auth/accessToken.guard';
 
 @Controller('user')
+@SerializeOptions({ strategy: 'excludeAll' })
 export class UserController {
   constructor(private userService: UserService) {}
 
@@ -32,10 +35,11 @@ export class UserController {
   }
 
   @Post('/login')
+  @UseInterceptors(ClassSerializerInterceptor)
   login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ msg: string; user: User; accessToken: string }> {
+  ): Promise<User> {
     return this.userService.logIn(loginDto, res);
   }
 
@@ -57,25 +61,25 @@ export class UserController {
     return this.userService.signOut(userId, res);
   }
 
-  @Get('/google-auth')
-  @UseGuards(AuthGuard('google'))
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  async googleAuth(@Req() req) {}
+  // @Get('/google-auth')
+  // @UseGuards(AuthGuard('google'))
+  // // eslint-disable-next-line @typescript-eslint/no-empty-function
+  // async googleAuth(@Req() req) {}
 
-  @Get('/google-auth/redirect')
-  @UseGuards(AuthGuard('google'))
-  googleAuthRedirect(@Req() req, @Res({ passthrough: true }) res: Response) {
-    return this.userService.googleLogin(req, res);
-  }
+  // @Get('/google-auth/redirect')
+  // @UseGuards(AuthGuard('google'))
+  // googleAuthRedirect(@Req() req, @Res({ passthrough: true }) res: Response) {
+  //   return this.userService.googleLogin(req, res);
+  // }
 
-  @Get('/github')
-  @UseGuards(AuthGuard('github'))
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  async githubAuth(@Req() req) {}
+  // @Get('/github')
+  // @UseGuards(AuthGuard('github'))
+  // // eslint-disable-next-line @typescript-eslint/no-empty-function
+  // async githubAuth(@Req() req) {}
 
-  @Get('/github/callback')
-  @UseGuards(AuthGuard('github'))
-  githubAuthRedirect(@Req() req, @Res({ passthrough: true }) res: Response) {
-    return this.userService.githubLogin(req, res);
-  }
+  // @Get('/github/callback')
+  // @UseGuards(AuthGuard('github'))
+  // githubAuthRedirect(@Req() req, @Res({ passthrough: true }) res: Response) {
+  //   return this.userService.githubLogin(req, res);
+  // }
 }

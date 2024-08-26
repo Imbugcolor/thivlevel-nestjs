@@ -1,29 +1,24 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  forwardRef,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './products.schema';
 import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { VariantService } from 'src/variant/variant.service';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { Review } from 'src/review/review.schema';
-import { ReviewService } from 'src/review/review.service';
-import { Request } from 'express';
-import { APIfeatures } from 'src/utils/ApiFeatures';
-import { ProductsDataResponse } from './type/productsDataResponse.type';
+import { PaginatedResult, Paginator } from 'src/utils/Paginator';
+import { Variant } from 'src/variant/variant.schema';
+import { ProductQueryDto } from './dto/product-query.dto';
 
 @Injectable()
 export class ProductsService {
+  private paginator: Paginator<Product>;
+
   constructor(
     @InjectModel(Product.name) private productModel: Model<Product>,
     private variantService: VariantService,
-    @Inject(forwardRef(() => ReviewService))
-    private reviewService: ReviewService,
-  ) {}
+  ) {
+    this.paginator = new Paginator<Product>(this.productModel);
+  }
 
   async validateProduct(id: string): Promise<Product> {
     const product = await this.productModel.findById(id);
@@ -57,64 +52,38 @@ export class ProductsService {
     return product;
   }
 
-  async getProducts(req: Request): Promise<ProductsDataResponse> {
+  async getProducts(
+    productQueryDto: ProductQueryDto,
+  ): Promise<PaginatedResult<Product>> {
     const variant_ids: string[] = [];
-    if (req.query.sizes) {
-      const sizesArray = (req.query.sizes as string).split(',');
+    if (productQueryDto.sizes) {
+      const sizesArray = productQueryDto.sizes.split(',');
 
       const variantsArr = await this.variantService.getVariantsByQuery({
         size: { $in: sizesArray },
       });
-      variantsArr.forEach((item) => {
-        return variant_ids.push(item._id);
+      variantsArr.forEach((item: Variant) => {
+        return variant_ids.push(item._id.toString());
       });
     }
 
-    const record = new APIfeatures(
-      this.productModel.find(
-        req.query.sizes && { variants: { $in: variant_ids } },
-      ),
-      req.query,
-    )
-      .filtering()
-      .sorting();
-    const total = await record.query;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { limit, page, sizes, sort, ...queryString } = productQueryDto;
+    const fullQueryString = { ...queryString, variants: { $in: variant_ids } };
 
-    const features = new APIfeatures(
-      this.productModel.find(
-        req.query.sizes && { variants: { $in: variant_ids } },
-      ),
-      req.query,
-    )
-      .filtering()
-      .sorting()
-      .pagination();
-
-    const products = await features.query.populate([
+    const populate = [
       {
         path: 'variants',
         select: 'size color inventory productId',
       },
-      {
-        path: 'reviews',
-        select: 'rating comment user productId',
-      },
-      {
-        path: 'reviews',
-        populate: {
-          path: 'user',
-          select: 'username avatar',
-        },
-      },
-    ]);
+    ];
 
-    return {
-      total: total.length,
-      data: {
-        length: products.length,
-        products,
-      },
-    };
+    return this.paginator.paginate(fullQueryString, {
+      limit,
+      page,
+      sort,
+      populate,
+    });
   }
 
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
@@ -227,25 +196,6 @@ export class ProductsService {
     );
 
     const product = await this.getProduct(id);
-
-    return product;
-  }
-
-  async addReview(id: string, review: Review): Promise<Product> {
-    const product = await this.productModel
-      .findById(id)
-      .populate('reviews', 'rating');
-
-    const ids = product.reviews;
-    const reviews = await this.reviewService.getReviews(ids);
-
-    product.reviews.push(review);
-    product.numReviews = reviews.length + 1;
-    product.rating =
-      (reviews.reduce((acc, item) => item.rating + acc, 0) + review.rating) /
-      (reviews.length + 1);
-
-    await product.save();
 
     return product;
   }

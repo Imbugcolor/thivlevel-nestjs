@@ -7,8 +7,9 @@ export class APIfeatures {
     this.queryString = queryString;
   }
   filtering() {
+    console.log(this.queryString);
     const queryObj = { ...(this.queryString as any) }; //queryString = req.query
-    // console.log({before: queryObj}) // before delete params
+    console.log({ before: queryObj }); // before delete params
 
     const excludedFields = ['page', 'sort', 'limit', 'sizes'];
     excludedFields.forEach((el) => delete queryObj[el]);
@@ -20,6 +21,7 @@ export class APIfeatures {
       /\b(gte|gt|lt|lte|regex)\b/g,
       (match) => '$' + match,
     );
+    console.log('QueryString', queryStr);
     // lte, gte = less/greater than or equal
     // lt, gt = less/greater than
     // regex = compare ~ string

@@ -74,17 +74,14 @@ export class UserService {
     }
     return {
       msg: 'Account has been activated!',
-      user: { ...user._doc, password: '' },
+      user,
     };
   }
 
-  async logIn(
-    loginDto: LoginDto,
-    res: any,
-  ): Promise<{ msg: string; user: User; accessToken: string }> {
+  async logIn(loginDto: LoginDto, res: any): Promise<User> {
     const { email, password } = loginDto;
 
-    const user = await this.userModel.findOne({ email });
+    const user = await this.userModel.findOne({ email }).lean();
 
     if (user && user.type === UserTypeLogin.LOGIN) {
       throw new UnauthorizedException(
@@ -96,19 +93,17 @@ export class UserService {
       const accessToken = await this.getAccessToken(user._id.toString());
       const refreshToken = await this.getRefreshToken(user._id.toString());
 
-      res.cookie('refresh_token', refreshToken, {
+      res.cookie('refreshtoken', refreshToken, {
         httpOnly: true,
-        path: `/user/refreshtoken`,
+        path: `/`,
+        secure: true,
+        sameSite: 'None',
         maxAge: 7 * 24 * 60 * 60 * 1000, //7days
       });
 
       await this.updateRefreshToken(user._id.toString(), refreshToken);
 
-      return {
-        msg: 'Login Success!',
-        user: { ...user._doc, password: '' },
-        accessToken,
-      };
+      return new User({ ...user, accessToken });
     } else {
       throw new UnauthorizedException('Please check your login credentials.');
     }
@@ -222,15 +217,17 @@ export class UserService {
       const accessToken = await this.getAccessToken(user._id.toString());
       const refreshToken = await this.getRefreshToken(user._id.toString());
 
-      res.cookie('refresh_token', refreshToken, {
+      res.cookie('refreshtoken', refreshToken, {
         httpOnly: true,
-        path: `/user/refreshtoken`,
+        path: `/`,
+        secure: true,
+        sameSite: 'None',
         maxAge: 7 * 24 * 60 * 60 * 1000, //7days
       });
 
       return {
         msg: 'Login Success!',
-        user: { ...user._doc, password: '' },
+        user,
         accessToken,
       };
     }
@@ -238,28 +235,30 @@ export class UserService {
     const accessToken = await this.getAccessToken(user._id.toString());
     const refreshToken = await this.getRefreshToken(user._id.toString());
 
-    res.cookie('refresh_token', refreshToken, {
+    res.cookie('refreshtoken', refreshToken, {
       httpOnly: true,
-      path: `/user/refreshtoken`,
+      path: `/`,
+      secure: true,
+      sameSite: 'None',
       maxAge: 7 * 24 * 60 * 60 * 1000, //7days
     });
 
     return {
       msg: 'Login Success!',
-      user: { ...user._doc, password: '' },
+      user,
       accessToken,
     };
   }
 
-  githubLogin(req, res) {
-    if (!req.user) {
-      return 'Not user auth';
-    }
-    return req.user;
-  }
+  // githubLogin(req: Request, res) {
+  //   if (!req.user) {
+  //     return 'Not user auth';
+  //   }
+  //   return req.user;
+  // }
 
   async signOut(userId: string, res) {
-    res.clearCookie('refresh_token', { path: `/user/refreshtoken` });
+    res.clearCookie('refreshtoken', { path: `/` });
 
     const user = await this.userModel.findById(userId);
 

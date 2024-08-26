@@ -6,7 +6,6 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
@@ -17,16 +16,18 @@ import { Role } from 'src/user/enum/role.enum';
 import { RolesGuard } from 'src/user/auth/roles.guard';
 import { AccessTokenGuard } from 'src/user/auth/accessToken.guard';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { Request } from 'express';
-import { ProductsDataResponse } from './type/productsDataResponse.type';
+import { ProductQueryDto } from './dto/product-query.dto';
+import { PaginatedResult } from 'src/utils/Paginator';
 
 @Controller('products')
 export class ProductsController {
   constructor(private productService: ProductsService) {}
 
   @Get()
-  async getProducts(@Req() req: Request): Promise<ProductsDataResponse> {
-    return this.productService.getProducts(req);
+  async getProducts(
+    @Query() productQueryDto: ProductQueryDto,
+  ): Promise<PaginatedResult<Product>> {
+    return this.productService.getProducts(productQueryDto);
   }
 
   @Get('/:id')

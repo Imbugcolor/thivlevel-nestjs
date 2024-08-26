@@ -7,8 +7,6 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { JwtRefreshTokenStrategy } from './auth/jwt-refresh-token-strategy';
-import { GoogleStrategy } from './auth/google.strategy';
-import { GithubStrategy } from './auth/github.strategy';
 import { SendmailModule } from 'src/sendmail/sendmail.module';
 
 @Module({
@@ -18,20 +16,8 @@ import { SendmailModule } from 'src/sendmail/sendmail.module';
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     SendmailModule,
   ],
-  providers: [
-    UserService,
-    JwtStrategy,
-    JwtRefreshTokenStrategy,
-    GoogleStrategy,
-    GithubStrategy,
-  ],
+  providers: [UserService, JwtStrategy, JwtRefreshTokenStrategy],
   controllers: [UserController],
-  exports: [
-    UserService,
-    JwtStrategy,
-    JwtRefreshTokenStrategy,
-    GoogleStrategy,
-    GithubStrategy,
-  ],
+  exports: [UserService, JwtStrategy, JwtRefreshTokenStrategy],
 })
 export class UserModule {}

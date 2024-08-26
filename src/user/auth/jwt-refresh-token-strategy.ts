@@ -22,8 +22,8 @@ export class JwtRefreshTokenStrategy extends PassportStrategy(
   }
 
   private static extractJWTFromCookie(req: Request): string | null {
-    if (req.cookies && req.cookies.refresh_token) {
-      return req.cookies.refresh_token;
+    if (req.cookies && req.cookies.refreshtoken) {
+      return req.cookies.refreshtoken;
     }
     return null;
   }
@@ -32,8 +32,8 @@ export class JwtRefreshTokenStrategy extends PassportStrategy(
     if (!payload) {
       throw new BadRequestException('invalid jwt token');
     }
-    if (req.cookies && req.cookies.refresh_token) {
-      return { ...payload, refreshToken: req.cookies.refresh_token };
+    if (req.cookies && req.cookies.refreshtoken) {
+      return { ...payload, refreshToken: req.cookies.refreshtoken };
     }
   }
 }
