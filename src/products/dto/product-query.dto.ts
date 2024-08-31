@@ -11,6 +11,9 @@ export class ProductQueryDto {
   sort: string;
 
   @IsOptional()
+  category: string;
+
+  @IsOptional()
   'title[regex]': string;
 
   @IsOptional()

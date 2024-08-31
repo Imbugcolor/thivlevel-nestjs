@@ -30,7 +30,7 @@ export class Paginator<T> {
     // lte, gte = less/greater than or equal
     // lt, gt = less/greater than
     // regex = compare ~ string
-    console.log({ queryFilter });
+    // console.log({ queryFilter });
 
     const { limit, page, sort, select, populate } = options;
 
@@ -44,7 +44,7 @@ export class Paginator<T> {
       .find(queryFilter)
       .limit(limit)
       .skip(skip)
-      .sort(sort)
+      .sort(sort ? sort : '-createdAt')
       .select(select)
       .populate(populate)
       .exec();

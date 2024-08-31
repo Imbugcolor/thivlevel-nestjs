@@ -1,12 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { Document } from 'mongoose';
+import mongoose from 'mongoose';
 import { Category } from 'src/category/category.schema';
 import { Review } from 'src/review/review.schema';
 import { Variant } from 'src/variant/variant.schema';
 import { ImageType } from './type/image.type';
 import { Expose } from 'class-transformer';
 
-export type ProductDocument = Product & Document;
 @Schema({ timestamps: true })
 export class Product {
   constructor(partial: Partial<Product>) {
@@ -15,7 +14,7 @@ export class Product {
 
   @Prop({ required: true, trim: true, unique: true })
   @Expose()
-  product_id: string;
+  product_sku: string;
 
   @Prop({ required: true, trim: true })
   @Expose()

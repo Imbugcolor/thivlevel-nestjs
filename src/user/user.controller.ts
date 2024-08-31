@@ -18,9 +18,14 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenGuard } from './auth/refreshToken.guard';
 import { Request, Response } from 'express';
 import { AccessTokenGuard } from './auth/accessToken.guard';
+import { GetUser } from './auth/get-user.decorator';
 
 @Controller('user')
-@SerializeOptions({ strategy: 'excludeAll' })
+@SerializeOptions({
+  strategy: 'excludeAll',
+  excludeExtraneousValues: true,
+  enableImplicitConversion: true,
+})
 export class UserController {
   constructor(private userService: UserService) {}
 
@@ -61,6 +66,12 @@ export class UserController {
     return this.userService.signOut(userId, res);
   }
 
+  @Get('/current')
+  @UseGuards(AccessTokenGuard)
+  @UseInterceptors(ClassSerializerInterceptor)
+  getCurrentUser(@GetUser() user: User) {
+    return this.userService.getCurrentUser(user._id.toString());
+  }
   // @Get('/google-auth')
   // @UseGuards(AuthGuard('google'))
   // // eslint-disable-next-line @typescript-eslint/no-empty-function

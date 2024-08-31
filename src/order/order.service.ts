@@ -111,12 +111,12 @@ export class OrderService {
           item.variantId,
         );
 
-        const { images, product_id, title, price } = product;
+        const { images, product_sku, title, price } = product;
         const { inventory, size, color, productId } = variant;
 
         return {
           ...item,
-          productId: { _id: item.productId, images, product_id, title, price },
+          productId: { _id: item.productId, images, product_sku, title, price },
           variantId: { _id: item.variantId, inventory, size, color, productId },
         };
       }),
@@ -160,12 +160,12 @@ export class OrderService {
           item.variantId,
         );
 
-        const { images, product_id, title, price } = product;
+        const { images, product_sku, title, price } = product;
         const { inventory, size, color, productId } = variant;
 
         return {
           ...item,
-          productId: { _id: item.productId, images, product_id, title, price },
+          productId: { _id: item.productId, images, product_sku, title, price },
           variantId: { _id: item.variantId, inventory, size, color, productId },
         };
       }),
@@ -256,11 +256,11 @@ export class OrderService {
         const variant = await this.variantService.validateVariant(
           item.variantId,
         );
-        const { images, product_id, title, price } = product;
+        const { images, product_sku, title, price } = product;
         const { inventory, size, color, productId } = variant;
         return {
           ...item,
-          productId: { _id: item.productId, images, product_id, title, price },
+          productId: { _id: item.productId, images, product_sku, title, price },
           variantId: { _id: item.variantId, inventory, size, color, productId },
         };
       }),

@@ -250,6 +250,11 @@ export class UserService {
     };
   }
 
+  async getCurrentUser(userId: string) {
+    const user = await this.userModel.findById(userId).lean();
+    return new User(user);
+  }
+
   // githubLogin(req: Request, res) {
   //   if (!req.user) {
   //     return 'Not user auth';

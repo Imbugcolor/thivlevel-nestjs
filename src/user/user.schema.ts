@@ -1,10 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose from 'mongoose';
+import { Types } from 'mongoose';
 import { UserGender } from './enum/user-gender.enum';
 import { UserTypeLogin } from './enum/user-type-login.enum';
 import { AddressType } from '../utils/address.type';
 import { Role } from './enum/role.enum';
 import { Expose } from 'class-transformer';
+import { ObjectIdToString } from 'src/utils/custom.transform';
 
 @Schema({ timestamps: true })
 export class User {
@@ -13,7 +14,8 @@ export class User {
   }
 
   @Expose()
-  _id: mongoose.Types.ObjectId;
+  @ObjectIdToString()
+  _id?: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   @Expose()
@@ -62,6 +64,12 @@ export class User {
 
   @Expose()
   accessToken?: string;
+
+  @Expose()
+  createdAt?: Date;
+
+  @Expose()
+  updatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

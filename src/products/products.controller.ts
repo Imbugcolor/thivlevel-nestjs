@@ -51,4 +51,9 @@ export class ProductsController {
   ): Promise<Product> {
     return this.productService.updateProduct(id, updateProductDto);
   }
+
+  @Post('/json-create')
+  jsonCreate(): Promise<string> {
+    return this.productService.createJsonProduct();
+  }
 }

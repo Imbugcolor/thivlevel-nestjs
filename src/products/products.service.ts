@@ -8,7 +8,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { PaginatedResult, Paginator } from 'src/utils/Paginator';
 import { Variant } from 'src/variant/variant.schema';
 import { ProductQueryDto } from './dto/product-query.dto';
-
+import { productsJson } from './product.data';
 @Injectable()
 export class ProductsService {
   private paginator: Paginator<Product>;
@@ -55,21 +55,24 @@ export class ProductsService {
   async getProducts(
     productQueryDto: ProductQueryDto,
   ): Promise<PaginatedResult<Product>> {
-    const variant_ids: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { limit, page, sizes, sort, ...queryString } = productQueryDto;
+    let filterQueryString: any = queryString;
+
     if (productQueryDto.sizes) {
+      const variant_ids: string[] = [];
       const sizesArray = productQueryDto.sizes.split(',');
 
       const variantsArr = await this.variantService.getVariantsByQuery({
         size: { $in: sizesArray },
       });
+
       variantsArr.forEach((item: Variant) => {
         return variant_ids.push(item._id.toString());
       });
-    }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { limit, page, sizes, sort, ...queryString } = productQueryDto;
-    const fullQueryString = { ...queryString, variants: { $in: variant_ids } };
+      filterQueryString = { ...queryString, variants: { $in: variant_ids } };
+    }
 
     const populate = [
       {
@@ -78,7 +81,7 @@ export class ProductsService {
       },
     ];
 
-    return this.paginator.paginate(fullQueryString, {
+    return this.paginator.paginate(filterQueryString, {
       limit,
       page,
       sort,
@@ -86,9 +89,19 @@ export class ProductsService {
     });
   }
 
+  async createJsonProduct(): Promise<string> {
+    await Promise.all(
+      productsJson.map(async (json) => {
+        await this.createProduct(json);
+      }),
+    );
+
+    return 'OK';
+  }
+
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
     const {
-      product_id,
+      product_sku,
       title,
       description,
       content,
@@ -99,7 +112,7 @@ export class ProductsService {
     } = createProductDto;
 
     const newProduct = new this.productModel({
-      product_id,
+      product_sku,
       title: title.toLowerCase(),
       content,
       description,

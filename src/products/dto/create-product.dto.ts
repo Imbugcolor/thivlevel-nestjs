@@ -1,9 +1,10 @@
 import { IsNotEmpty, IsNumber, MinLength } from 'class-validator';
 import { VariantType } from 'src/variant/variant.type';
+import { ImageType } from '../type/image.type';
 
 export class CreateProductDto {
   @IsNotEmpty()
-  product_id: string;
+  product_sku: string;
 
   @IsNotEmpty()
   @MinLength(5)
@@ -16,11 +17,11 @@ export class CreateProductDto {
   price: number;
 
   @IsNotEmpty()
-  images: [{ url: string; public_id: string }];
+  images: ImageType[];
 
   @IsNotEmpty()
   category: string;
 
   @IsNotEmpty()
-  variants: [VariantType];
+  variants: VariantType[];
 }
