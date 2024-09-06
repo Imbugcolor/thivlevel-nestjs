@@ -8,6 +8,9 @@ import { VariantModule } from 'src/variant/variant.module';
 import { CartModule } from 'src/cart/cart.module';
 import { UserModule } from 'src/user/user.module';
 import { ConfigModule } from '@nestjs/config';
+import { PaypalModule } from 'src/paypal/paypal.module';
+import { RedisModule } from 'src/redis/redis.module';
+import { EventsModule } from 'src/events/events.module';
 
 @Module({
   imports: [
@@ -17,6 +20,9 @@ import { ConfigModule } from '@nestjs/config';
     VariantModule,
     CartModule,
     UserModule,
+    PaypalModule,
+    RedisModule,
+    EventsModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

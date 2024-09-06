@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cart } from './cart.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { AddCartDto } from './dto/add-cart.dto';
 import { ProductsService } from 'src/products/products.service';
@@ -25,22 +25,22 @@ export class CartService {
     private variantService: VariantService,
   ) {}
 
-  async validateCart(id: any, cartId: string) {
-    let fcart;
+  async validateCart(userId: Types.ObjectId, cartId: string) {
+    let fcart: Cart;
     if (cartId) {
       fcart = await this.cartModel.findById(cartId).populate({ path: 'items' });
     } else {
       fcart = await this.cartModel
-        .findOne({ userId: id })
+        .findOne({ userId })
         .populate({ path: 'items' });
     }
 
     if (!fcart) return;
 
-    const cart = await fcart.populate([
+    const cart: Cart = await fcart.populate([
       {
         path: 'items.productId',
-        select: 'product_id price total title images isPublished',
+        select: '_id product_sku price total title images isPublished',
       },
       {
         path: 'items.variantId',
@@ -86,7 +86,8 @@ export class CartService {
                 .populate([
                   {
                     path: 'items.productId',
-                    select: 'product_id price total title images isPublished',
+                    select:
+                      '_id product_sku price total title images isPublished',
                   },
                   {
                     path: 'items.variantId',
@@ -99,7 +100,8 @@ export class CartService {
                 .populate([
                   {
                     path: 'items.productId',
-                    select: 'product_id price total title images isPublished',
+                    select:
+                      '_id product_sku price total title images isPublished',
                   },
                   {
                     path: 'items.variantId',
@@ -215,7 +217,7 @@ export class CartService {
       return cart.populate([
         {
           path: 'items.productId',
-          select: 'product_id price total title images isPublished',
+          select: '_id product_sku price total title images isPublished',
         },
         {
           path: 'items.variantId',
@@ -236,7 +238,7 @@ export class CartService {
       return cart.populate([
         {
           path: 'items.productId',
-          select: 'product_id price total title images isPublished',
+          select: '_id product_sku price total title images isPublished',
         },
         {
           path: 'items.variantId',
@@ -271,7 +273,7 @@ export class CartService {
         );
       }
       const product = await this.productService.validateProduct(
-        cart.items[indexFound].productId._id,
+        cart.items[indexFound].productId._id.toString(),
       );
 
       let newItem;

@@ -1,11 +1,12 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Order } from './order.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { User } from 'src/user/user.schema';
 import { ProductsService } from 'src/products/products.service';
@@ -18,12 +19,19 @@ import Stripe from 'stripe';
 import { Request } from 'express';
 import { UserService } from 'src/user/user.service';
 import { ConfigService } from '@nestjs/config';
-import { APIfeatures } from 'src/utils/ApiFeatures';
-import { OrdersDataResponse } from './type/ordersDataResponse.type';
 import { OrderStatus } from './enum/order-status.enum';
+import { Item } from 'src/item/item.schema';
+import { PaypalService } from 'src/paypal/paypal.service';
+import { PaypalTransactionDto } from './dto/paypaltransaction.dto';
+import { RedisService } from 'src/redis/redis.service';
+import { EventsGateway } from 'src/events/events.gateway';
+import { PaginatedResult, Paginator } from 'src/utils/Paginator';
+import { OrdersQueryDto } from './dto/orders-query.dto';
 
 @Injectable()
 export class OrderService {
+  private paginator: Paginator<Order>;
+
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
     private productService: ProductsService,
@@ -32,7 +40,12 @@ export class OrderService {
     private userService: UserService,
     @InjectStripe() private stripe: Stripe,
     private configService: ConfigService,
-  ) {}
+    private paypalService: PaypalService,
+    private redisService: RedisService,
+    private eventsGateway: EventsGateway,
+  ) {
+    this.paginator = new Paginator<Order>(this.orderModel);
+  }
 
   async validateItem(id: string, quantity: number) {
     const variant = await this.variantService.validateVariant(id);
@@ -42,39 +55,25 @@ export class OrderService {
         `Inventory quantity product variant id: ${variant._id} is not enough.`,
       );
     }
+
     return;
   }
 
-  async getOrdersByUser(user: User, req: Request): Promise<OrdersDataResponse> {
-    const totalFeatures = new APIfeatures(
-      this.orderModel.find({ user: user._id.toString() }),
-      req.query,
-    )
-      .filtering()
-      .sorting();
+  async getMyOrders(
+    user: User,
+    ordersQuery: OrdersQueryDto,
+  ): Promise<PaginatedResult<Order>> {
+    const { limit, page, sort, ...queryString } = ordersQuery;
 
-    const total = await totalFeatures.query;
-
-    const ordersFeatures = new APIfeatures(
-      this.orderModel.find({ user: user._id.toString() }),
-      req.query,
-    )
-      .filtering()
-      .sorting()
-      .pagination();
-
-    const orders = await ordersFeatures.query;
-
-    return {
-      total: total.length,
-      data: {
-        length: orders.length,
-        orders,
-      },
-    };
+    const userOrdersQueryString = { ...queryString, user: user._id.toString() };
+    return this.paginator.paginate(userOrdersQueryString, {
+      limit,
+      page,
+      sort,
+    });
   }
 
-  async getUserOrder(id: string, user: User): Promise<Order> {
+  async getMyOrder(id: string, user: User): Promise<Order> {
     const order = await this.orderModel.findOne({
       _id: id,
       user: user._id.toString(),
@@ -91,24 +90,32 @@ export class OrderService {
     createOrderDto: CreateOrderDto,
     user: User,
   ): Promise<Order> {
-    const { items, name, phone, address } = createOrderDto;
+    const { name, phone, address } = createOrderDto;
     const { email } = user;
 
-    //Check item valid before place order
+    // Checkout items in cart
+    // Get cart
+    const cart = await this.cartService.getCart(user);
+
+    //validate before checkout
     await Promise.all(
-      items.map(async (item) => {
-        await this.validateItem(item.variantId, item.quantity);
+      cart.items.map(async (item) => {
+        await this.validateItem(item.variantId._id.toString(), item.quantity);
       }),
     );
 
     const newItems = await Promise.all(
-      items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity, false);
+      cart.items.map(async (item) => {
+        await this.inventoryCount(
+          item.variantId._id.toString(),
+          item.quantity,
+          false,
+        );
         const product = await this.productService.validateProduct(
-          item.productId,
+          item.productId._id.toString(),
         );
         const variant = await this.variantService.validateVariant(
-          item.variantId,
+          item.variantId._id.toString(),
         );
 
         const { images, product_sku, title, price } = product;
@@ -129,45 +136,28 @@ export class OrderService {
       phone,
       address,
       items: newItems,
-      total: items.reduce((acc, curr) => {
-        return acc + curr.price * curr.quantity;
-      }, 0),
+      total: cart.subTotal,
       method: OrderMethod.COD,
     });
 
-    this.soldCount(items, 'productId', false);
-
-    return newOrder.save();
+    this.soldCount(cart.items, false);
+    const orderData = await newOrder.save();
+    await this.cartService.emptyCart(cart._id);
+    return orderData;
   }
 
   // Create Checkout Session = Stripe to Payment
   async createCheckout(createOrderDto: CreateOrderDto, user: User) {
-    const { items, name, phone, address } = createOrderDto;
+    const { name, phone, address } = createOrderDto;
 
-    //Check item valid before place order
+    // Checkout items in cart
+    // Get cart
+    const cart = await this.cartService.getCart(user);
+
+    //validate before checkout
     await Promise.all(
-      items.map(async (item) => {
-        await this.validateItem(item.variantId, item.quantity);
-      }),
-    );
-
-    const newItems = await Promise.all(
-      items.map(async (item) => {
-        const product = await this.productService.validateProduct(
-          item.productId,
-        );
-        const variant = await this.variantService.validateVariant(
-          item.variantId,
-        );
-
-        const { images, product_sku, title, price } = product;
-        const { inventory, size, color, productId } = variant;
-
-        return {
-          ...item,
-          productId: { _id: item.productId, images, product_sku, title, price },
-          variantId: { _id: item.variantId, inventory, size, color, productId },
-        };
+      cart.items.map(async (item) => {
+        await this.validateItem(item.variantId._id.toString(), item.quantity);
       }),
     );
 
@@ -175,7 +165,6 @@ export class OrderService {
       metadata: {
         name,
         user: user._id.toString(),
-        items: JSON.stringify(items),
         phone,
         address: JSON.stringify(address),
       },
@@ -184,7 +173,7 @@ export class OrderService {
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      line_items: newItems.map((item) => {
+      line_items: cart.items.map((item) => {
         return {
           price_data: {
             currency: 'usd',
@@ -240,21 +229,19 @@ export class OrderService {
     // Return a res to acknowledge receipt of the event
   }
 
-  async createOrderCheckout(customer: Stripe.Customer, data: any) {
-    const user = await this.userService.getUser(customer.metadata.user);
-    const { email } = user;
-
-    const items = JSON.parse(customer.metadata.items);
-    const address = JSON.parse(customer.metadata.address);
-
+  async mapToCartOrder(cartItems: Item[]) {
     const newItems = await Promise.all(
-      items.map(async (item) => {
-        await this.inventoryCount(item.variantId, item.quantity, false);
+      cartItems.map(async (item: Item) => {
         const product = await this.productService.validateProduct(
-          item.productId,
+          item.productId._id.toString(),
         );
         const variant = await this.variantService.validateVariant(
-          item.variantId,
+          item.variantId._id.toString(),
+        );
+        await this.inventoryCount(
+          item.variantId._id.toString(),
+          item.quantity,
+          false,
         );
         const { images, product_sku, title, price } = product;
         const { inventory, size, color, productId } = variant;
@@ -265,6 +252,18 @@ export class OrderService {
         };
       }),
     );
+
+    return newItems;
+  }
+
+  async createOrderCheckout(customer: Stripe.Customer, data: any) {
+    const user = await this.userService.getUser(customer.metadata.user);
+    const { email } = user;
+
+    const address = JSON.parse(customer.metadata.address);
+    const cart = await this.cartService.getCart(user);
+
+    const newItems = await this.mapToCartOrder(cart.items);
 
     const newOrder = new this.orderModel({
       user: customer.metadata.user,
@@ -279,9 +278,13 @@ export class OrderService {
       isPaid: true,
     });
 
-    this.soldCount(items, 'productId', false);
+    this.soldCount(cart.items, false);
 
-    return newOrder.save();
+    const orderData = await newOrder.save();
+
+    await this.cartService.emptyCart(cart._id);
+
+    return orderData;
   }
 
   async updateOrderStatus(id: string, status: OrderStatus): Promise<any> {
@@ -310,14 +313,14 @@ export class OrderService {
         }),
       );
 
-      this.soldCount(items, 'productId', true);
+      this.soldCount(items, true);
     }
 
     return newOrder;
   }
 
   async cancelOrder(id: string, user: User): Promise<any> {
-    const oldOrder = await this.getUserOrder(id, user);
+    const oldOrder = await this.getMyOrder(id, user);
 
     if (oldOrder.status === OrderStatus.CANCELED) {
       return new BadRequestException(`The order: ${id} is already canceled.`);
@@ -347,27 +350,30 @@ export class OrderService {
       }),
     );
 
-    this.soldCount(items, 'productId', true);
+    this.soldCount(items, true);
 
     return newOrder;
   }
 
-  soldCount(array: OrderItem[], keyId: string, resold: boolean) {
-    const groupBy = function (xs: any[], id: string) {
-      return xs.reduce(function (rv: any, x: any) {
-        (rv[x[id]] = rv[x[id]] || []).push(x);
-        return rv;
-      }, {});
-    };
+  soldCount(items: OrderItem[], resold: boolean) {
+    const soldQuantities: { [key: string]: number } = {};
 
-    // Group by _id of items to calculate total sold each product in order items
-    const groupById = groupBy(array, keyId);
+    items.forEach((item) => {
+      const productId = item.productId._id.toString();
+      const quantity = item.quantity;
 
-    Object.keys(groupById).forEach((id) => {
-      const sumQuantity = groupById[id].reduce((acc: number, curr: any) => {
-        return acc + curr.quantity;
-      }, 0);
-      return this.updateNewSold(id, sumQuantity, resold);
+      // If the product is already in the dictionary, add the quantity to its current value
+      if (soldQuantities[productId]) {
+        soldQuantities[productId] += quantity;
+      } else {
+        // If not, initialize it with the current quantity
+        soldQuantities[productId] = quantity;
+      }
+    });
+
+    Object.entries(soldQuantities).map(([key, value]) => {
+      console.log(`Product ID: ${key}, Quantity Sold: ${value}`);
+      return this.updateNewSold(key, value, resold);
     });
   }
 
@@ -389,5 +395,150 @@ export class OrderService {
 
   async inventoryCount(id: string, quantity: number, resold: boolean) {
     await this.variantService.updateInventory(id, quantity, resold);
+  }
+
+  /**
+   * Create an order to start the transaction.
+   * See https://developer.paypal.com/docs/api/orders/v2/#orders_create
+   */
+  async createPaypalTransaction(user: User, data: PaypalTransactionDto) {
+    // use the cart information passed from the front-end to calculate the purchase unit details
+    console.log(
+      'shopping cart information passed from the frontend createOrder() callback:',
+      data,
+    );
+    const cart = await this.cartService.validateCart(user._id, null);
+
+    const baseUrl = this.configService.get('PAYPAL_BASE_URL');
+
+    const accessToken = await this.paypalService.generateAccessToken();
+    const url = `${baseUrl}/v2/checkout/orders`;
+    const payload = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          amount: {
+            currency_code: 'USD',
+            value: cart.subTotal.toFixed(2),
+          },
+          custom_id: data.socketId, // Example of custom data
+        },
+      ],
+      application_context: {
+        shipping_preference: 'NO_SHIPPING',
+      },
+    };
+
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        // Uncomment one of these to force an error for negative testing (in sandbox mode only). Documentation:
+        // https://developer.paypal.com/tools/sandbox/negative-testing/request-headers/
+        // "PayPal-Mock-Response": '{"mock_application_codes": "MISSING_REQUIRED_PARAMETER"}'
+        // "PayPal-Mock-Response": '{"mock_application_codes": "PERMISSION_DENIED"}'
+        // "PayPal-Mock-Response": '{"mock_application_codes": "INTERNAL_SERVER_ERROR"}'
+      },
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    try {
+      const jsonResponse = await response.json();
+      const transaction_data = {
+        ...data,
+        userId: user._id.toString(),
+        email: user.email,
+      };
+      await this.redisService.setTransaction(data.socketId, transaction_data);
+
+      return {
+        jsonResponse,
+        httpStatusCode: response.status,
+      };
+    } catch (err) {
+      const errorMessage = await response.text();
+      throw new BadGatewayException(errorMessage);
+    }
+  }
+
+  // save order to DB
+  async submitOrder(socketId: string) {
+    try {
+      const transactionData = await this.redisService.getTransaction(socketId);
+      console.log('REDIS STORE', transactionData);
+
+      const { userId, email, name, phone, address } = transactionData;
+      const cart = await this.cartService.validateCart(
+        new Types.ObjectId(userId),
+        null,
+      );
+      const newItems = await this.mapToCartOrder(cart.items);
+
+      const newOrder = new this.orderModel({
+        user: userId,
+        name,
+        email,
+        items: newItems,
+        paymentID: '',
+        address,
+        total: cart.subTotal,
+        phone,
+        method: OrderMethod.CARD,
+        isPaid: true,
+      });
+
+      this.soldCount(cart.items, false);
+
+      const createOrder = await newOrder.save();
+
+      await this.cartService.emptyCart(cart._id);
+
+      this.eventsGateway.orderTransactionSucessEvent(socketId);
+
+      await this.redisService.deleteTransaction(socketId);
+
+      return createOrder;
+    } catch (err) {
+      console.log(err);
+      // global._io.to(`${orderData.socketId}`).emit('ORDER_FAILED', { msg: err.message })
+      this.eventsGateway.orderTransactionFailedEvent(socketId, err.message);
+      throw new BadGatewayException(err.message);
+    }
+  }
+
+  async paypalWebhookCompleteOrder(req: Request) {
+    const webhookEvent = req.body;
+    const socketId = webhookEvent.resource.custom_id;
+    console.log(webhookEvent.resource);
+
+    try {
+      const isValid = await this.paypalService.verifyWebhook(
+        req.headers,
+        webhookEvent,
+      );
+      if (isValid) {
+        // Process the webhook event
+        console.log('Webhook event', webhookEvent);
+
+        if (webhookEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
+          await this.submitOrder(socketId);
+        }
+      } else {
+        this.eventsGateway.orderTransactionFailedEvent(
+          socketId,
+          'Server Error: Invalid webhook event',
+        );
+        console.log('Invalid webhook event');
+      }
+    } catch (error) {
+      this.eventsGateway.orderTransactionFailedEvent(
+        socketId,
+        'Server Error: Invalid webhook event',
+      );
+      console.error('Error verifying webhook', error);
+    }
+
+    return { message: 'Đặt hàng thành công.' };
   }
 }

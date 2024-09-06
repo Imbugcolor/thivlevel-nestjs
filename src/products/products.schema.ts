@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Category } from 'src/category/category.schema';
 import { Review } from 'src/review/review.schema';
 import { Variant } from 'src/variant/variant.schema';
@@ -11,6 +11,7 @@ export class Product {
   constructor(partial: Partial<Product>) {
     Object.assign(this, partial);
   }
+  _id?: Types.ObjectId;
 
   @Prop({ required: true, trim: true, unique: true })
   @Expose()
@@ -38,7 +39,7 @@ export class Product {
 
   @Prop({
     type: mongoose.Types.ObjectId,
-    ref: 'category',
+    ref: Category.name,
     required: true,
   })
   @Expose()
@@ -71,7 +72,7 @@ export class Product {
   @Expose()
   numReviews: number;
 
-  @Prop({ default: false })
+  @Prop({ default: true })
   @Expose()
   isPublished: boolean;
 }

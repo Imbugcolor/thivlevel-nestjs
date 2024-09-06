@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,46 +15,47 @@ import { GetUser } from 'src/user/auth/get-user.decorator';
 import { User } from 'src/user/user.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Request } from 'express';
-import { OrdersDataResponse } from './type/ordersDataResponse.type';
 import { RolesGuard } from 'src/user/auth/roles.guard';
 import { Roles } from 'src/user/auth/roles.decorator';
 import { Role } from 'src/user/enum/role.enum';
 import { OrderStatus } from './enum/order-status.enum';
 import { Order } from './order.schema';
+import { PaypalTransactionDto } from './dto/paypaltransaction.dto';
+import { OrdersQueryDto } from './dto/orders-query.dto';
 @Controller('order')
 export class OrderController {
   constructor(private orderService: OrderService) {}
 
-  @Get()
+  @Get('/my')
   @UseGuards(AccessTokenGuard)
-  getOrdersByUser(
+  async getMyOrders(
     @GetUser() user: User,
-    @Req() req: Request,
-  ): Promise<OrdersDataResponse> {
-    return this.orderService.getOrdersByUser(user, req);
+    @Query() orderQuery: OrdersQueryDto,
+  ) {
+    return this.orderService.getMyOrders(user, orderQuery);
   }
 
   @Get('/:id')
   @UseGuards(AccessTokenGuard)
-  getOrderByUser(
+  async getOrder(
     @Param('id') id: string,
     @GetUser() user: User,
   ): Promise<Order> {
-    return this.orderService.getUserOrder(id, user);
+    return this.orderService.getMyOrder(id, user);
   }
 
   @Post('/create-cod-order')
   @UseGuards(AccessTokenGuard)
-  createCodOrder(
+  async createCodOrder(
     @Body() createOrderDto: CreateOrderDto,
     @GetUser() user: User,
   ) {
     return this.orderService.createCodOrder(createOrderDto, user);
   }
 
-  @Post('/create-checkout-session')
+  @Post('/create-stripe-checkout-session')
   @UseGuards(AccessTokenGuard)
-  createCheckoutSession(
+  async createStripeCheckoutSession(
     @Body() createOrderDto: CreateOrderDto,
     @GetUser() user: User,
   ) {
@@ -63,7 +65,7 @@ export class OrderController {
   @Patch('/update-order-status/:id')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
-  updateOrderStatus(
+  async updateOrderStatus(
     @Param('id') id: string,
     @Body('status')
     status: OrderStatus,
@@ -73,7 +75,24 @@ export class OrderController {
 
   @Patch('/cancel-order/:id')
   @UseGuards(AccessTokenGuard)
-  cancelOrder(@Param('id') id: string, @GetUser() user: User): Promise<Order> {
+  async cancelOrder(
+    @Param('id') id: string,
+    @GetUser() user: User,
+  ): Promise<Order> {
     return this.orderService.cancelOrder(id, user);
+  }
+
+  @Post('/create-paypal-checkout-session')
+  @UseGuards(AccessTokenGuard)
+  async createPaypalCheckoutSession(
+    @Body() paypalTransaction: PaypalTransactionDto,
+    @GetUser() user: User,
+  ) {
+    return this.orderService.createPaypalTransaction(user, paypalTransaction);
+  }
+
+  @Post('/paypalwebhook')
+  async paypalWebhook(@Req() req: Request) {
+    return this.orderService.paypalWebhookCompleteOrder(req);
   }
 }

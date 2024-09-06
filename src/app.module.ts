@@ -23,6 +23,9 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { UploadModule } from './upload/upload.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { SendmailModule } from './sendmail/sendmail.module';
+import { PaypalModule } from './paypal/paypal.module';
+import { RedisModule } from './redis/redis.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -71,6 +74,9 @@ import { SendmailModule } from './sendmail/sendmail.module';
       }),
     }),
     SendmailModule,
+    PaypalModule,
+    RedisModule,
+    EventsModule,
   ],
   controllers: [StripeWebhookController],
 })

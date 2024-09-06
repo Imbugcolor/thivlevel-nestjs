@@ -31,6 +31,10 @@ export class ProductsService {
   async getProduct(id: string): Promise<Product> {
     const product = await this.productModel.findById(id).populate([
       {
+        path: 'category',
+        select: '_id name createdAt updatedAt',
+      },
+      {
         path: 'variants',
         select: 'size color inventory productId',
       },
