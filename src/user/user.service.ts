@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -14,16 +15,28 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
-import { UserTypeLogin } from './enum/user-type-login.enum';
 import { SendmailService } from 'src/sendmail/sendmail.service';
-
+import { AuthStrategy } from './enum/auth.strategy.enum';
+import { OAuth2Client } from 'google-auth-library';
+import { Response } from 'express';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { UpdatePasswordDto } from './dto/update-password.dto';
 @Injectable()
 export class UserService {
+  private client = new OAuth2Client(
+    `${process.env.GOOGLE_CLIENT_ID}`,
+    `${process.env.GOOGLE_CLIENT_SECRET}`,
+    'postmessage',
+  );
+
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private sendmailService: SendmailService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async getUser(id: string): Promise<User> {
@@ -31,8 +44,19 @@ export class UserService {
     return user;
   }
 
-  async register(registerDto: RegisterDto): Promise<{ msg: string }> {
+  async register(registerDto: RegisterDto): Promise<{ message: string }> {
     const { username, email, password } = registerDto;
+
+    const usernameExist = await this.userModel.findOne({ username });
+    const emailExist = await this.userModel.findOne({ email });
+
+    if (usernameExist) {
+      throw new BadRequestException(`Tên tài khoản đã được sử dụng`);
+    }
+
+    if (emailExist) {
+      throw new BadRequestException('Email đã được sử dụng');
+    }
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -43,10 +67,10 @@ export class UserService {
 
     const url = `${this.configService.get(
       'BASE_URL',
-    )}/user/active/${active_token}`;
+    )}/auth/active/${active_token}`;
 
     this.sendmailService.sendMail(email, url, 'Verify your email address.');
-    return { msg: 'Success! Pls check your email.' };
+    return { message: 'OK' };
   }
 
   async activeAccount(token: string) {
@@ -57,7 +81,7 @@ export class UserService {
     const { user } = decoded;
 
     if (!user) {
-      throw new UnauthorizedException('Please check your credentials.');
+      throw new UnauthorizedException('Thông tin không chính xác.');
     }
 
     const newUser = new this.userModel(user);
@@ -67,26 +91,24 @@ export class UserService {
     } catch (error) {
       if (error.code === 11000) {
         //duplicate username
-        throw new ConflictException('email already exists.');
+        throw new ConflictException('Email đã tồn tại.');
       } else {
         throw new InternalServerErrorException();
       }
     }
     return {
-      msg: 'Account has been activated!',
-      user,
+      message: 'Kích hoạt thành công.',
+      user: new User(user),
     };
   }
 
-  async logIn(loginDto: LoginDto, res: any): Promise<User> {
+  async logIn(loginDto: LoginDto, res: Response): Promise<User> {
     const { email, password } = loginDto;
 
     const user = await this.userModel.findOne({ email }).lean();
 
-    if (user && user.type === UserTypeLogin.LOGIN) {
-      throw new UnauthorizedException(
-        'This account has registed with other method.',
-      );
+    if (user && user.authStrategy !== AuthStrategy.LOCAL) {
+      throw new UnauthorizedException('Lỗi xác thực');
     }
 
     if (user && (await bcrypt.compare(password, user.password))) {
@@ -97,7 +119,7 @@ export class UserService {
         httpOnly: true,
         path: `/`,
         secure: true,
-        sameSite: 'None',
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000, //7days
       });
 
@@ -105,7 +127,7 @@ export class UserService {
 
       return new User({ ...user, accessToken });
     } else {
-      throw new UnauthorizedException('Please check your login credentials.');
+      throw new UnauthorizedException('Thông tin đăng nhập không chính xác');
     }
   }
 
@@ -176,83 +198,132 @@ export class UserService {
     };
   }
 
-  async googleLogin(req, res) {
-    if (!req.user) {
-      return { msg: 'No user from google' };
-    }
+  async googleLogin(googleLoginDto: GoogleLoginDto, res: Response) {
+    const { tokens } = await this.client.getToken(googleLoginDto.code);
 
-    const user = await this.userModel.findOne({ email: req.user.email });
+    const { id_token } = tokens;
 
-    if (user && user.type === UserTypeLogin.NORMAL) {
-      return { msg: 'This account arealdy sign up without google' };
-    }
-
-    if (!user) {
-      const { email, name, picture } = req.user;
-
-      const password = this.configService.get('PASSWORD_USER_OAUTH');
-
-      const salt = await bcrypt.genSalt();
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      const user = new this.userModel({
-        username: name,
-        email,
-        avatar: picture,
-        password: hashedPassword,
-        type: UserTypeLogin.LOGIN,
+    if (id_token) {
+      const verify = await this.client.verifyIdToken({
+        idToken: id_token,
+        audience: `${this.configService.get('GOOGLE_CLIENT_ID')}`,
       });
 
-      try {
-        await user.save();
-      } catch (error) {
-        if (error.code === 11000) {
-          //duplicate username
-          throw new ConflictException('email already exists.');
-        } else {
-          throw new InternalServerErrorException();
-        }
+      const { email, email_verified, name, picture } = verify.getPayload();
+
+      if (!email_verified) {
+        throw new BadRequestException('Email verification failed');
       }
 
-      const accessToken = await this.getAccessToken(user._id.toString());
-      const refreshToken = await this.getRefreshToken(user._id.toString());
+      const user = await this.userModel.findOne({ email });
 
-      res.cookie('refreshtoken', refreshToken, {
-        httpOnly: true,
-        path: `/`,
-        secure: true,
-        sameSite: 'None',
-        maxAge: 7 * 24 * 60 * 60 * 1000, //7days
-      });
+      if (user) {
+        if (user && user.authStrategy !== AuthStrategy.GOOGLE) {
+          throw new UnauthorizedException('Lỗi xác thực');
+        }
+        const accessToken = await this.getAccessToken(user._id.toString());
+        const refreshToken = await this.getRefreshToken(user._id.toString());
 
-      return {
-        msg: 'Login Success!',
-        user,
-        accessToken,
-      };
+        res.cookie('refreshtoken', refreshToken, {
+          httpOnly: true,
+          path: `/`,
+          secure: true,
+          sameSite: 'none',
+          maxAge: 7 * 24 * 60 * 60 * 1000, //7days
+        });
+
+        await this.updateRefreshToken(user._id.toString(), refreshToken);
+
+        return new User({ ...user, accessToken });
+      } else {
+        const password = this.configService.get('PASSWORD_USER_OAUTH');
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const user = new this.userModel({
+          username: name,
+          email,
+          avatar: picture,
+          password: hashedPassword,
+          authStrategy: AuthStrategy.GOOGLE,
+        });
+
+        const accessToken = await this.getAccessToken(user._id.toString());
+        const refreshToken = await this.getRefreshToken(user._id.toString());
+
+        const hashedRefreshToken = await this.hashData(refreshToken);
+        user.rf_token = hashedRefreshToken;
+
+        await user.save();
+
+        res.cookie('refreshtoken', refreshToken, {
+          httpOnly: true,
+          path: `/`,
+          secure: true,
+          sameSite: 'none',
+          maxAge: 7 * 24 * 60 * 60 * 1000, //7days
+        });
+
+        return new User({ ...user, accessToken });
+      }
     }
-
-    const accessToken = await this.getAccessToken(user._id.toString());
-    const refreshToken = await this.getRefreshToken(user._id.toString());
-
-    res.cookie('refreshtoken', refreshToken, {
-      httpOnly: true,
-      path: `/`,
-      secure: true,
-      sameSite: 'None',
-      maxAge: 7 * 24 * 60 * 60 * 1000, //7days
-    });
-
-    return {
-      msg: 'Login Success!',
-      user,
-      accessToken,
-    };
   }
 
   async getCurrentUser(userId: string) {
     const user = await this.userModel.findById(userId).lean();
     return new User(user);
+  }
+
+  async updatePhoto(user: User, file: Express.Multer.File) {
+    try {
+      const imageResponse = await this.cloudinaryService.uploadFile(file);
+      const updatedPhoto = await this.userModel
+        .findByIdAndUpdate(
+          user._id,
+          {
+            avatar: imageResponse.url,
+          },
+          { new: true },
+        )
+        .lean();
+
+      return new User(updatedPhoto);
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException();
+    }
+  }
+
+  async updateProfile(user: User, updateDto: UpdateUserDto) {
+    try {
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(user._id, updateDto, { new: true })
+        .lean();
+
+      return new User(updatedUser);
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException();
+    }
+  }
+
+  async updatePassword(user: User, updatePasswordDto: UpdatePasswordDto) {
+    const { old_password, new_password } = updatePasswordDto;
+
+    const old_user = await this.userModel.findById(user._id);
+
+    if (!(await bcrypt.compare(old_password, old_user.password))) {
+      throw new BadRequestException('Mật khẩu cũ không chính xác');
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(new_password, salt);
+
+    const updatedUser = await this.userModel
+      .findByIdAndUpdate(user._id, { password: hashedPassword }, { new: true })
+      .lean();
+
+    return new User(updatedUser);
   }
 
   // githubLogin(req: Request, res) {
@@ -271,6 +342,6 @@ export class UserService {
 
     await user.save();
 
-    return { msg: 'Logged Out.' };
+    return { message: 'Logged Out.' };
   }
 }

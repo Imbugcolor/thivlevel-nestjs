@@ -8,6 +8,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { JwtRefreshTokenStrategy } from './auth/jwt-refresh-token-strategy';
 import { SendmailModule } from 'src/sendmail/sendmail.module';
+import { OtpModule } from 'src/otp/otp.module';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { SendmailModule } from 'src/sendmail/sendmail.module';
     JwtModule.register({}),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     SendmailModule,
+    OtpModule,
+    CloudinaryModule,
   ],
   providers: [UserService, JwtStrategy, JwtRefreshTokenStrategy],
   controllers: [UserController],

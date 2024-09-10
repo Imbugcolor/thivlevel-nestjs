@@ -127,4 +127,37 @@ export class PaypalService {
 
     return this.handleResponse(response);
   }
+
+  encodeObjectToBase64(object: { [key: string]: any }) {
+    const objectString = JSON.stringify(object);
+    return Buffer.from(objectString).toString('base64');
+  }
+
+  generatePayPalAuthAssertion() {
+    const clientId = this.PAYPAL_CLIENT_ID;
+    // const sellerPayerId = 'SELLER-PAYER-ID'; // preferred
+    const sellerEmail = this.configService.get('PAYPAL_SELLER_EMAIL'); // use instead if payer-id unknown
+
+    const header = {
+      alg: 'none',
+    };
+    const encodedHeader = this.encodeObjectToBase64(header);
+
+    const payload = {
+      iss: clientId,
+      // payer_id: sellerPayerId,
+      email: sellerEmail,
+    };
+    const encodedPayload = this.encodeObjectToBase64(payload);
+
+    const jwt = `${encodedHeader}.${encodedPayload}.`; // json web token
+    console.log(`Paypal-Auth-Assertion=${jwt}`);
+    return jwt;
+  }
+
+  // async refundPayment(captureID: string) {
+  //   // /v2/payments/captures/2GG279541U471931P/refund
+  //   const accessToken = await this.generateAccessToken();
+  //   const url = `${this.base}/v2/payments/captures/${captureID}/refund`;
+  // }
 }

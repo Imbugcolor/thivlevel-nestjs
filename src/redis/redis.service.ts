@@ -36,4 +36,28 @@ export class RedisService {
       console.log(error);
     }
   }
+
+  async setOtp(email: string, otp: string): Promise<void> {
+    try {
+      await this.cacheManager.set(email, otp);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async getOtp(email: string): Promise<string> {
+    try {
+      return await this.cacheManager.get(email);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async deleteOtp(key: string): Promise<void> {
+    try {
+      await this.cacheManager.del(key);
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }

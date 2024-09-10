@@ -4,10 +4,12 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   Res,
   SerializeOptions,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -19,6 +21,10 @@ import { RefreshTokenGuard } from './auth/refreshToken.guard';
 import { Request, Response } from 'express';
 import { AccessTokenGuard } from './auth/accessToken.guard';
 import { GetUser } from './auth/get-user.decorator';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
 
 @Controller('user')
 @SerializeOptions({
@@ -30,7 +36,7 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Post('/register')
-  register(@Body() registerDto: RegisterDto): Promise<{ msg: string }> {
+  register(@Body() registerDto: RegisterDto): Promise<{ message: string }> {
     return this.userService.register(registerDto);
   }
 
@@ -72,6 +78,44 @@ export class UserController {
   getCurrentUser(@GetUser() user: User) {
     return this.userService.getCurrentUser(user._id.toString());
   }
+
+  @Post('/google-login')
+  @UseInterceptors(ClassSerializerInterceptor)
+  googleLogin(
+    @Body() gooleLoginDto: GoogleLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<User> {
+    return this.userService.googleLogin(gooleLoginDto, res);
+  }
+
+  @Patch('/update')
+  @UseGuards(AccessTokenGuard)
+  @UseInterceptors(ClassSerializerInterceptor)
+  updateProfile(@GetUser() user: User, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.updateProfile(user, updateUserDto);
+  }
+
+  @Patch('/password')
+  @UseGuards(AccessTokenGuard)
+  @UseInterceptors(ClassSerializerInterceptor)
+  updatePassword(
+    @GetUser() user: User,
+    @Body() updatePasswordDto: UpdatePasswordDto,
+  ) {
+    return this.userService.updatePassword(user, updatePasswordDto);
+  }
+
+  @Patch('/photo')
+  @UseGuards(AccessTokenGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(ClassSerializerInterceptor)
+  updatePhoto(
+    @GetUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.userService.updatePhoto(user, file);
+  }
+
   // @Get('/google-auth')
   // @UseGuards(AuthGuard('google'))
   // // eslint-disable-next-line @typescript-eslint/no-empty-function

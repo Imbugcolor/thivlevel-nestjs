@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Expose } from 'class-transformer';
 import mongoose from 'mongoose';
 import { User } from 'src/user/user.schema';
+import { ObjectIdToString } from 'src/utils/custom.transform';
 
 @Schema({ timestamps: true })
 export class Review {
@@ -10,6 +11,7 @@ export class Review {
   }
 
   @Expose()
+  @ObjectIdToString()
   _id?: mongoose.Types.ObjectId;
 
   @Prop({ required: true })
@@ -21,7 +23,9 @@ export class Review {
   comment: string;
 
   @Prop({
-    type: [{ type: mongoose.Types.ObjectId, ref: User.name, required: true }],
+    type: mongoose.Types.ObjectId,
+    ref: User.name,
+    required: true,
   })
   @Expose()
   user: User;

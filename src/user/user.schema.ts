@@ -1,11 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { UserGender } from './enum/user-gender.enum';
-import { UserTypeLogin } from './enum/user-type-login.enum';
-import { AddressType } from '../utils/address.type';
 import { Role } from './enum/role.enum';
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import { ObjectIdToString } from 'src/utils/custom.transform';
+import { AuthStrategy } from './enum/auth.strategy.enum';
+import { AddressDto } from 'src/order/dto/shipping-address.dto';
 
 @Schema({ timestamps: true })
 export class User {
@@ -45,7 +45,8 @@ export class User {
 
   @Prop()
   @Expose()
-  address: AddressType;
+  @Type(() => AddressDto)
+  address: AddressDto;
 
   @Prop({ default: UserGender.MALE })
   @Expose()
@@ -55,9 +56,9 @@ export class User {
   @Expose()
   dateOfbirth: string;
 
-  @Prop({ default: UserTypeLogin.NORMAL })
+  @Prop({ default: AuthStrategy.LOCAL })
   @Expose()
-  type: UserTypeLogin;
+  authStrategy: AuthStrategy;
 
   @Prop()
   rf_token: string;

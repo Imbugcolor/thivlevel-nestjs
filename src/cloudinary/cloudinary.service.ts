@@ -8,7 +8,7 @@ var streamifier = require('streamifier');
 @Injectable()
 export class CloudinaryService {
   uploadFile(file: Express.Multer.File): Promise<CloudinaryResponse> {
-    if (file.size > 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       throw new BadRequestException('Please upload a file size less than 1mb');
     }
     // Check if the file is an image

@@ -80,7 +80,7 @@ export class OrderService {
     });
 
     if (!order) {
-      throw new NotFoundException(`Order ID: ${id} is not found.`);
+      throw new NotFoundException(`Mã đơn: ${id} không tồn tại.`);
     }
 
     return order;
@@ -270,7 +270,7 @@ export class OrderService {
       name: customer.metadata.name,
       email,
       items: newItems,
-      paymentID: data.payment_intent,
+      paymentId: data.payment_intent,
       address,
       total: data.amount_total / 100,
       phone: customer.metadata.phone,
@@ -323,7 +323,7 @@ export class OrderService {
     const oldOrder = await this.getMyOrder(id, user);
 
     if (oldOrder.status === OrderStatus.CANCELED) {
-      return new BadRequestException(`The order: ${id} is already canceled.`);
+      return new BadRequestException(`Đơn hàng: ${id} đã được hủy.`);
     }
 
     if (
@@ -331,7 +331,7 @@ export class OrderService {
       oldOrder.status === OrderStatus.DELIVERED ||
       oldOrder.status === OrderStatus.COMPLETED
     ) {
-      return new BadRequestException(`The order: ${id} could not canceled.`);
+      return new BadRequestException(`Đơn hàng: ${id} không thể hủy.`);
     }
 
     const newOrder = await this.orderModel.findByIdAndUpdate(
@@ -463,7 +463,7 @@ export class OrderService {
   }
 
   // save order to DB
-  async submitOrder(socketId: string) {
+  async submitOrder(socketId: string, captureID: string) {
     try {
       const transactionData = await this.redisService.getTransaction(socketId);
       console.log('REDIS STORE', transactionData);
@@ -480,7 +480,7 @@ export class OrderService {
         name,
         email,
         items: newItems,
-        paymentID: '',
+        paymentId: captureID,
         address,
         total: cart.subTotal,
         phone,
@@ -510,6 +510,7 @@ export class OrderService {
   async paypalWebhookCompleteOrder(req: Request) {
     const webhookEvent = req.body;
     const socketId = webhookEvent.resource.custom_id;
+    const captureID = webhookEvent.resource.id;
     console.log(webhookEvent.resource);
 
     try {
@@ -522,7 +523,7 @@ export class OrderService {
         console.log('Webhook event', webhookEvent);
 
         if (webhookEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-          await this.submitOrder(socketId);
+          await this.submitOrder(socketId, captureID);
         }
       } else {
         this.eventsGateway.orderTransactionFailedEvent(

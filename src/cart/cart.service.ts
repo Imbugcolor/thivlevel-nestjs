@@ -63,7 +63,7 @@ export class CartService {
 
       if (!cart) {
         const cartData = {
-          userId: user,
+          userId: user._id,
           items: [],
           subTotal: 0,
         };
@@ -229,7 +229,7 @@ export class CartService {
     else {
       const item = await this.itemService.createItem(newItem);
       const cartData = {
-        userId: user,
+        userId: user._id,
         items: [item],
         subTotal: Number(product.price * quantity),
       };

@@ -26,6 +26,7 @@ import { SendmailModule } from './sendmail/sendmail.module';
 import { PaypalModule } from './paypal/paypal.module';
 import { RedisModule } from './redis/redis.module';
 import { EventsModule } from './events/events.module';
+import { OtpModule } from './otp/otp.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { EventsModule } from './events/events.module';
     PaypalModule,
     RedisModule,
     EventsModule,
+    OtpModule,
   ],
   controllers: [StripeWebhookController],
 })
