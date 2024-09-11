@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   SerializeOptions,
@@ -25,6 +26,8 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { VerifyTokenDto } from './dto/verify-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('user')
 @SerializeOptions({
@@ -114,6 +117,21 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.userService.updatePhoto(user, file);
+  }
+
+  @Post('/forgotpassword')
+  forgotPassword(@Body('email') email: string): Promise<{ message: string }> {
+    return this.userService.forgotPassword(email);
+  }
+
+  @Get('/verify-password-recovery')
+  verifyPasswordRecovery(@Query() verifyToken: VerifyTokenDto) {
+    return this.userService.verifyPasswordRecovery(verifyToken);
+  }
+
+  @Patch('/reset-password')
+  resetPassword(@Body() resetPassword: ResetPasswordDto) {
+    return this.userService.resetPassword(resetPassword);
   }
 
   // @Get('/google-auth')

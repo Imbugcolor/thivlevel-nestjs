@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -23,6 +24,8 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyTokenDto } from './dto/verify-token.dto';
 @Injectable()
 export class UserService {
   private client = new OAuth2Client(
@@ -324,6 +327,74 @@ export class UserService {
       .lean();
 
     return new User(updatedUser);
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.userModel.findOne({ email }).lean();
+
+    if (!user) {
+      throw new NotFoundException('Email chưa được đăng ký trên hệ thống');
+    }
+
+    const secret =
+      this.configService.get('RECOVERY_PASSWORD_SECRET') + user.password;
+    const token = this.jwtService.sign(
+      { email, id: user._id },
+      {
+        secret,
+        expiresIn: '5m',
+      },
+    );
+    const url = `${this.configService.get('URL_VERIFY_PASSWORD_RECOVERY')}?id=${
+      user._id
+    }&token=${token}`;
+
+    const title = 'Verify your password recovery.';
+    this.sendmailService.sendMail(email, url, title);
+
+    return { message: 'Check your email to reset your password.' };
+  }
+
+  async verifyPasswordRecovery(verifyToken: VerifyTokenDto) {
+    const { id, token } = verifyToken;
+
+    const oldUser = await this.userModel.findById(id).lean();
+    const secret =
+      this.configService.get<string>('RECOVERY_PASSWORD_SECRET') +
+      oldUser.password;
+    try {
+      this.jwtService.verify(token, {
+        secret,
+      });
+      return { message: 'Verified' };
+    } catch (err) {
+      throw new InternalServerErrorException({ message: err.message });
+    }
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const { id, token, password } = resetPasswordDto;
+    const oldUser = await this.userModel.findById(id).lean();
+
+    const secret =
+      this.configService.get<string>('RECOVERY_PASSWORD_SECRET') +
+      oldUser.password;
+    try {
+      this.jwtService.verify(token, {
+        secret,
+      });
+
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      await this.userModel.findByIdAndUpdate(id, {
+        password: hashedPassword,
+      });
+
+      return { message: 'Cập nhật mật khẩu thành công.' };
+    } catch (err) {
+      throw new InternalServerErrorException({ message: err.message });
+    }
   }
 
   // githubLogin(req: Request, res) {

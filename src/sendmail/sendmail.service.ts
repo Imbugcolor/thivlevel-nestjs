@@ -817,7 +817,7 @@ export class SendmailService {
                                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                                                 <tbody>
                                                     <tr>
-                                                    <td> <a href=${url} target="_blank">Active</a> </td>
+                                                    <td> <a href=${url} target="_blank">Verify</a> </td>
                                                     </tr>
                                                 </tbody>
                                                 </table>
