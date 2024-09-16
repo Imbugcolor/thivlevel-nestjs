@@ -8,7 +8,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { PaginatedResult, Paginator } from 'src/utils/Paginator';
 import { Variant } from 'src/variant/variant.schema';
 import { ProductQueryDto } from './dto/product-query.dto';
-import { productsJson } from './product.data';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 @Injectable()
 export class ProductsService {
   private paginator: Paginator<Product>;
@@ -16,6 +16,7 @@ export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<Product>,
     private variantService: VariantService,
+    private cloudinaryService: CloudinaryService,
   ) {
     this.paginator = new Paginator<Product>(this.productModel);
   }
@@ -80,6 +81,10 @@ export class ProductsService {
 
     const populate = [
       {
+        path: 'category',
+        select: '_id name createdAt updatedAt',
+      },
+      {
         path: 'variants',
         select: 'size color inventory productId',
       },
@@ -93,16 +98,6 @@ export class ProductsService {
     });
   }
 
-  async createJsonProduct(): Promise<string> {
-    await Promise.all(
-      productsJson.map(async (json) => {
-        await this.createProduct(json);
-      }),
-    );
-
-    return 'OK';
-  }
-
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
     const {
       product_sku,
@@ -113,6 +108,7 @@ export class ProductsService {
       images,
       category,
       variants,
+      isPublished,
     } = createProductDto;
 
     const newProduct = new this.productModel({
@@ -123,6 +119,7 @@ export class ProductsService {
       price,
       images,
       category,
+      isPublished,
     });
 
     await Promise.all(
@@ -149,24 +146,35 @@ export class ProductsService {
   ): Promise<Product> {
     const oldProduct = await this.productModel.findById(id);
 
-    const { title, description, content, price, images, category, variants } =
-      updateProductDto;
+    const {
+      title,
+      description,
+      content,
+      price,
+      images,
+      category,
+      variants,
+      isPublished,
+    } = updateProductDto;
 
-    await this.productModel.findByIdAndUpdate(
-      id,
-      {
-        title,
-        description,
-        content,
-        price,
-        images,
-        category,
-      },
-      { new: true },
-    );
+    oldProduct.title = title;
+    oldProduct.description = description;
+    oldProduct.content = content;
+    oldProduct.price = price;
+    (oldProduct.category as unknown as string) = category;
+    oldProduct.isPublished = isPublished;
+
+    // Delete images in cloudinary if not available on images product update
+    oldProduct.images.forEach((image) => {
+      if (!images.find((img) => img.public_id === image.public_id)) {
+        this.cloudinaryService.destroyFile(image.public_id);
+      }
+    });
+
+    oldProduct.images = images;
 
     // Remove variants in variants schema if it removed in variants field of products schema
-    const ids: any[] = [];
+    const ids: string[] = [];
     variants.map((item) => {
       if (item._id) {
         return ids.push(item._id);
@@ -181,25 +189,13 @@ export class ProductsService {
       (item) => !removeVariants.includes(item),
     );
 
-    await oldProduct.save();
-
-    await this.variantService.deleteVariants(removeVariants);
-
     // Update Variants - Add new Variants
     await Promise.all(
       variants.map(async (item) => {
         if (!item._id) {
           const newVariant = await this.variantService.createVariant(item);
 
-          await this.productModel.findByIdAndUpdate(
-            id,
-            {
-              $push: {
-                variants: newVariant,
-              },
-            },
-            { new: true },
-          );
+          oldProduct.variants.push(newVariant);
         } else {
           const variant = {
             _id: item._id,
@@ -212,6 +208,8 @@ export class ProductsService {
       }),
     );
 
+    await oldProduct.save();
+
     const product = await this.getProduct(id);
 
     return product;
@@ -219,5 +217,9 @@ export class ProductsService {
 
   async updateSold(id: string, sold: number): Promise<Product> {
     return this.productModel.findByIdAndUpdate(id, { sold });
+  }
+
+  async updatePublish(id: string, publish: boolean) {
+    return this.productModel.findByIdAndUpdate(id, { isPublished: publish });
   }
 }

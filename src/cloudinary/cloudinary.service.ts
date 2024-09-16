@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { CloudinaryResponse } from './cloudinary/cloudinary-response';
 import { v2 as cloudinary } from 'cloudinary';
-import { ImageType } from 'src/products/type/image.type';
+import { ImageDto } from 'src/products/type/image.dto';
 // eslint-disable-next-line no-var, @typescript-eslint/no-var-requires
 var streamifier = require('streamifier');
 
@@ -29,7 +29,7 @@ export class CloudinaryService {
     });
   }
   async uploadFiles(files: Express.Multer.File[]) {
-    const images: ImageType[] = [];
+    const images: ImageDto[] = [];
     await Promise.all(
       files.map(async (file) => {
         const response = await this.uploadFile(file);
@@ -38,7 +38,7 @@ export class CloudinaryService {
       }),
     );
     return {
-      msg: 'Upload Success!',
+      message: 'Upload Success!',
       images,
     };
   }

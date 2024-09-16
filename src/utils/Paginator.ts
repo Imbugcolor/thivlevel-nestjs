@@ -16,6 +16,7 @@ export class Paginator<T> {
       limit?: number;
       page?: number;
       sort?: any;
+      publish?: boolean;
       select?: any;
       populate?: any;
     },
@@ -35,6 +36,10 @@ export class Paginator<T> {
     const { limit, page, sort, select, populate } = options;
 
     const skip = (page - 1) * limit;
+
+    if (queryFilter.isPublished) {
+      queryFilter.isPublished = true;
+    }
 
     // Get total count of documents that match the filter
     const total = await this.model.countDocuments(queryFilter).exec();

@@ -3,7 +3,7 @@ import mongoose, { Types } from 'mongoose';
 import { Category } from 'src/category/category.schema';
 import { Review } from 'src/review/review.schema';
 import { Variant } from 'src/variant/variant.schema';
-import { ImageType } from './type/image.type';
+import { ImageDto } from './type/image.dto';
 import { Expose } from 'class-transformer';
 
 @Schema({ timestamps: true })
@@ -21,11 +21,11 @@ export class Product {
   @Expose()
   title: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, default: 'New description' })
   @Expose()
   description: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, default: 'New content about product' })
   @Expose()
   content: string;
 
@@ -35,7 +35,7 @@ export class Product {
 
   @Prop({ required: true })
   @Expose()
-  images: ImageType[];
+  images: ImageDto[];
 
   @Prop({
     type: mongoose.Types.ObjectId,

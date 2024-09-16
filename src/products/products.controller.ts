@@ -52,8 +52,13 @@ export class ProductsController {
     return this.productService.updateProduct(id, updateProductDto);
   }
 
-  @Post('/json-create')
-  jsonCreate(): Promise<string> {
-    return this.productService.createJsonProduct();
+  @Patch('/:id/publish')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  updatePublish(
+    @Param('id') id: string,
+    @Body('publish') publish: boolean,
+  ): Promise<Product> {
+    return this.productService.updatePublish(id, publish);
   }
 }

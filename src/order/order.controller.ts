@@ -62,17 +62,6 @@ export class OrderController {
     return this.orderService.createCheckout(createOrderDto, user);
   }
 
-  @Patch('/update-order-status/:id')
-  @UseGuards(AccessTokenGuard, RolesGuard)
-  @Roles(Role.Admin)
-  async updateOrderStatus(
-    @Param('id') id: string,
-    @Body('status')
-    status: OrderStatus,
-  ): Promise<Order> {
-    return this.orderService.updateOrderStatus(id, status);
-  }
-
   @Patch('/cancel-order/:id')
   @UseGuards(AccessTokenGuard)
   async cancelOrder(
@@ -94,5 +83,24 @@ export class OrderController {
   @Post('/paypalwebhook')
   async paypalWebhook(@Req() req: Request) {
     return this.orderService.paypalWebhookCompleteOrder(req);
+  }
+
+  // *ADMIN* //
+  @Patch('/update-order-status/:id')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async updateOrderStatus(
+    @Param('id') id: string,
+    @Body('status')
+    status: OrderStatus,
+  ): Promise<Order> {
+    return this.orderService.updateOrderStatus(id, status);
+  }
+
+  @Get('/revenue/total')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async getTotalRevenue() {
+    return this.orderService.getTotalRevenue();
   }
 }

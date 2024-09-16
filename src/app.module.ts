@@ -38,6 +38,7 @@ import { OtpModule } from './otp/otp.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get('MONGODB_URI'),
+        useUnifiedTopology: false,
       }),
     }),
     ProductsModule,

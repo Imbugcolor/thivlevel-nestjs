@@ -1,24 +1,4 @@
-import { IsNotEmpty, IsNumber, MinLength } from 'class-validator';
-import { VariantType } from 'src/variant/variant.type';
-import { ImageType } from '../type/image.type';
+import { PartialType } from '@nestjs/swagger';
+import { CreateProductDto } from './create-product.dto';
 
-export class UpdateProductDto {
-  @IsNotEmpty()
-  @MinLength(5)
-  title: string;
-
-  description: string;
-  content: string;
-
-  @IsNumber()
-  price: number;
-
-  @IsNotEmpty()
-  images: ImageType[];
-
-  @IsNotEmpty()
-  category: string;
-
-  @IsNotEmpty()
-  variants: VariantType[];
-}
+export class UpdateProductDto extends PartialType(CreateProductDto) {}

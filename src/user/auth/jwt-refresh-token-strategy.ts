@@ -1,16 +1,16 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserService } from '../user.service';
 import { PassportStrategy } from '@nestjs/passport';
 import { Request } from 'express';
+import { JwtPayload } from './interface/jwt-payload.interface';
 
 @Injectable()
 export class JwtRefreshTokenStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
-  constructor(configService: ConfigService, private userService: UserService) {
+  constructor(configService: ConfigService) {
     super({
       secretOrKey: configService.get('JWT_REFRESH_TOKEN_SECRET'),
       ignoreExpiration: false,
@@ -28,7 +28,7 @@ export class JwtRefreshTokenStrategy extends PassportStrategy(
     return null;
   }
 
-  async validate(req: Request, payload: any) {
+  async validate(req: Request, payload: JwtPayload) {
     if (!payload) {
       throw new BadRequestException('invalid jwt token');
     }

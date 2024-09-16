@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsOptional } from 'class-validator';
 
 export class ProductQueryDto {
@@ -33,4 +34,15 @@ export class ProductQueryDto {
 
   @IsOptional()
   'price[gte]': string;
+
+  @IsOptional()
+  @Transform(({ obj, key }) => {
+    const value = obj[key];
+    if (typeof value === 'string') {
+      return obj[key] === 'true';
+    }
+
+    return value;
+  })
+  isPublished: boolean;
 }

@@ -97,20 +97,8 @@ export class OrderService {
     // Get cart
     const cart = await this.cartService.getCart(user);
 
-    //validate before checkout
-    await Promise.all(
-      cart.items.map(async (item) => {
-        await this.validateItem(item.variantId._id.toString(), item.quantity);
-      }),
-    );
-
     const newItems = await Promise.all(
       cart.items.map(async (item) => {
-        await this.inventoryCount(
-          item.variantId._id.toString(),
-          item.quantity,
-          false,
-        );
         const product = await this.productService.validateProduct(
           item.productId._id.toString(),
         );
@@ -140,6 +128,7 @@ export class OrderService {
       method: OrderMethod.COD,
     });
 
+    await this.inventoryCount(cart.items, false);
     this.soldCount(cart.items, false);
     const orderData = await newOrder.save();
     await this.cartService.emptyCart(cart._id);
@@ -153,6 +142,7 @@ export class OrderService {
     // Checkout items in cart
     // Get cart
     const cart = await this.cartService.getCart(user);
+    await this.inventoryCount(cart.items, false);
 
     //validate before checkout
     await Promise.all(
@@ -226,6 +216,19 @@ export class OrderService {
         })
         .catch((err: any) => console.log(err.message));
     }
+
+    if (
+      eventType === 'checkout.session.expired' ||
+      eventType === 'payment_intent.canceled' ||
+      eventType === 'payment_intent.payment_failed'
+    ) {
+      this.stripe.customers
+        .retrieve(data.customer)
+        .then((customer) => {
+          this.abortStripeCheckout(customer as Stripe.Customer);
+        })
+        .catch((err: any) => console.log(err.message));
+    }
     // Return a res to acknowledge receipt of the event
   }
 
@@ -238,11 +241,6 @@ export class OrderService {
         const variant = await this.variantService.validateVariant(
           item.variantId._id.toString(),
         );
-        await this.inventoryCount(
-          item.variantId._id.toString(),
-          item.quantity,
-          false,
-        );
         const { images, product_sku, title, price } = product;
         const { inventory, size, color, productId } = variant;
         return {
@@ -254,6 +252,14 @@ export class OrderService {
     );
 
     return newItems;
+  }
+
+  async abortStripeCheckout(customer: Stripe.Customer) {
+    const user = await this.userService.getUser(customer.metadata.user);
+
+    const cart = await this.cartService.getCart(user);
+
+    await this.inventoryCount(cart.items, true);
   }
 
   async createOrderCheckout(customer: Stripe.Customer, data: any) {
@@ -303,15 +309,14 @@ export class OrderService {
     );
 
     if (status === OrderStatus.CANCELED) {
-      const items = await Promise.all(
-        (newOrder.items as any).map(async (item) => {
-          await this.inventoryCount(item.variantId._id, item.quantity, true);
-          return {
-            ...item,
-            productId: item.productId._id,
-          };
-        }),
-      );
+      const items = (newOrder.items as any).map((item: any) => {
+        return {
+          ...item,
+          productId: item.productId._id,
+        };
+      });
+
+      await this.inventoryCount(items, true);
 
       this.soldCount(items, true);
     }
@@ -340,15 +345,14 @@ export class OrderService {
       { new: true },
     );
 
-    const items = await Promise.all(
-      (newOrder.items as any).map(async (item) => {
-        await this.inventoryCount(item.variantId._id, item.quantity, true);
-        return {
-          ...item,
-          productId: item.productId._id,
-        };
-      }),
-    );
+    const items = (newOrder.items as any).map((item: any) => {
+      return {
+        ...item,
+        productId: item.productId._id,
+      };
+    });
+
+    await this.inventoryCount(items, true);
 
     this.soldCount(items, true);
 
@@ -393,8 +397,8 @@ export class OrderService {
     await this.productService.updateSold(id, newSold);
   }
 
-  async inventoryCount(id: string, quantity: number, resold: boolean) {
-    await this.variantService.updateInventory(id, quantity, resold);
+  async inventoryCount(items: Item[], resold: boolean) {
+    await this.variantService.updateInventory(items, resold);
   }
 
   /**
@@ -451,6 +455,7 @@ export class OrderService {
         email: user.email,
       };
       await this.redisService.setTransaction(data.socketId, transaction_data);
+      await this.inventoryCount(cart.items, false);
 
       return {
         jsonResponse,
@@ -507,6 +512,20 @@ export class OrderService {
     }
   }
 
+  async abortPaypalCheckout(socketId: string) {
+    const transactionData = await this.redisService.getTransaction(socketId);
+    console.log('REDIS STORE', transactionData);
+
+    const { userId } = transactionData;
+
+    const cart = await this.cartService.validateCart(
+      new Types.ObjectId(userId),
+      null,
+    );
+
+    await this.inventoryCount(cart.items, true);
+  }
+
   async paypalWebhookCompleteOrder(req: Request) {
     const webhookEvent = req.body;
     const socketId = webhookEvent.resource.custom_id;
@@ -525,6 +544,14 @@ export class OrderService {
         if (webhookEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
           await this.submitOrder(socketId, captureID);
         }
+
+        if (webhookEvent.event_type === 'CHECKOUT.PAYMENT-APPROVAL.REVERSED') {
+          await this.abortPaypalCheckout(socketId);
+        }
+
+        if (webhookEvent.event_type === 'PAYMENT.CAPTURE.DENIED') {
+          await this.abortPaypalCheckout(socketId);
+        }
       } else {
         this.eventsGateway.orderTransactionFailedEvent(
           socketId,
@@ -541,5 +568,16 @@ export class OrderService {
     }
 
     return { message: 'Đặt hàng thành công.' };
+  }
+
+  // * ADMIN * //
+  async getTotalRevenue() {
+    const orders = await this.orderModel.find({ isPaid: true }).lean();
+
+    const totalRevenue = orders.reduce((acc, curr) => {
+      return acc + curr.total;
+    }, 0);
+
+    return totalRevenue;
   }
 }

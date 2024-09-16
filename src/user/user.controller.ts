@@ -134,6 +134,15 @@ export class UserController {
     return this.userService.resetPassword(resetPassword);
   }
 
+  @Post('/admin/login')
+  @UseInterceptors(ClassSerializerInterceptor)
+  adminLogin(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<User> {
+    return this.userService.adminLogIn(loginDto, res);
+  }
+
   // @Get('/google-auth')
   // @UseGuards(AuthGuard('google'))
   // // eslint-disable-next-line @typescript-eslint/no-empty-function

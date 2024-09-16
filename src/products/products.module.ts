@@ -6,6 +6,7 @@ import { Product, ProductSchema } from './products.schema';
 import { VariantModule } from 'src/variant/variant.module';
 import { Variant, VariantSchema } from 'src/variant/variant.schema';
 import { UserModule } from 'src/user/user.module';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UserModule } from 'src/user/user.module';
     ]),
     VariantModule,
     UserModule,
+    CloudinaryModule,
   ],
   providers: [ProductsService],
   controllers: [ProductsController],

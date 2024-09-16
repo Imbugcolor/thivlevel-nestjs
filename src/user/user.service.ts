@@ -26,6 +26,7 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyTokenDto } from './dto/verify-token.dto';
+import { Role } from './enum/role.enum';
 @Injectable()
 export class UserService {
   private client = new OAuth2Client(
@@ -110,13 +111,52 @@ export class UserService {
 
     const user = await this.userModel.findOne({ email }).lean();
 
+    if (user.role.some((rl) => rl === Role.Admin)) {
+      throw new UnauthorizedException('Không thể đăng nhập tài khoản quản trị');
+    }
+
     if (user && user.authStrategy !== AuthStrategy.LOCAL) {
       throw new UnauthorizedException('Lỗi xác thực');
     }
 
     if (user && (await bcrypt.compare(password, user.password))) {
-      const accessToken = await this.getAccessToken(user._id.toString());
-      const refreshToken = await this.getRefreshToken(user._id.toString());
+      const accessToken = await this.getAccessToken(user);
+      const refreshToken = await this.getRefreshToken(user);
+
+      res.cookie('refreshtoken', refreshToken, {
+        httpOnly: true,
+        path: `/`,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000, //7days
+      });
+
+      await this.updateRefreshToken(user._id.toString(), refreshToken);
+
+      return new User({ ...user, accessToken });
+    } else {
+      throw new UnauthorizedException('Thông tin đăng nhập không chính xác');
+    }
+  }
+
+  async adminLogIn(loginDto: LoginDto, res: Response): Promise<User> {
+    const { email, password } = loginDto;
+
+    const user = await this.userModel.findOne({ email }).lean();
+
+    if (!user.role.some((rl) => rl === Role.Admin)) {
+      throw new UnauthorizedException('Không có quyền truy cập');
+    }
+
+    if (user && user.authStrategy !== AuthStrategy.LOCAL) {
+      throw new UnauthorizedException(
+        'Tài khoản đã được đăng ký phương thức khác',
+      );
+    }
+
+    if (user && (await bcrypt.compare(password, user.password))) {
+      const accessToken = await this.getAccessToken(user);
+      const refreshToken = await this.getRefreshToken(user);
 
       res.cookie('refreshtoken', refreshToken, {
         httpOnly: true,
@@ -159,10 +199,11 @@ export class UserService {
     return activeToken;
   }
 
-  async getAccessToken(userId: string) {
+  async getAccessToken(user: User) {
     const accessToken = await this.jwtService.signAsync(
       {
-        _id: userId,
+        _id: user._id.toString(),
+        role: user.role,
       },
       {
         secret: this.configService.get<string>('JWT_SECRET'),
@@ -173,10 +214,11 @@ export class UserService {
     return accessToken;
   }
 
-  async getRefreshToken(userId: string) {
+  async getRefreshToken(user: User) {
     const refreshToken = await this.jwtService.signAsync(
       {
-        _id: userId,
+        _id: user._id.toString(),
+        role: user.role,
       },
       {
         secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
@@ -195,7 +237,7 @@ export class UserService {
       refreshToken,
     );
     if (!refreshTokenMatches) throw new ForbiddenException('Access Denied');
-    const accessToken = await this.getAccessToken(user._id.toString());
+    const accessToken = await this.getAccessToken(user);
     return {
       accessToken,
     };
@@ -224,8 +266,8 @@ export class UserService {
         if (user && user.authStrategy !== AuthStrategy.GOOGLE) {
           throw new UnauthorizedException('Lỗi xác thực');
         }
-        const accessToken = await this.getAccessToken(user._id.toString());
-        const refreshToken = await this.getRefreshToken(user._id.toString());
+        const accessToken = await this.getAccessToken(user);
+        const refreshToken = await this.getRefreshToken(user);
 
         res.cookie('refreshtoken', refreshToken, {
           httpOnly: true,
@@ -251,8 +293,8 @@ export class UserService {
           authStrategy: AuthStrategy.GOOGLE,
         });
 
-        const accessToken = await this.getAccessToken(user._id.toString());
-        const refreshToken = await this.getRefreshToken(user._id.toString());
+        const accessToken = await this.getAccessToken(user);
+        const refreshToken = await this.getRefreshToken(user);
 
         const hashedRefreshToken = await this.hashData(refreshToken);
         user.rf_token = hashedRefreshToken;

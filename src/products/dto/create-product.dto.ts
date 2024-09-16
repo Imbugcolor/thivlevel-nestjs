@@ -1,6 +1,16 @@
-import { IsNotEmpty, IsNumber, MinLength } from 'class-validator';
-import { VariantType } from 'src/variant/variant.type';
-import { ImageType } from '../type/image.type';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { ImageDto } from '../type/image.dto';
+import { VariantDto } from 'src/variant/dto/variant.dto';
+import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -10,18 +20,30 @@ export class CreateProductDto {
   @MinLength(5)
   title: string;
 
+  @IsOptional()
   description: string;
+
+  @IsOptional()
   content: string;
 
   @IsNumber()
   price: number;
 
   @IsNotEmpty()
-  images: ImageType[];
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => ImageDto)
+  images: ImageDto[];
 
   @IsNotEmpty()
   category: string;
 
-  @IsNotEmpty()
-  variants: VariantType[];
+  @IsBoolean()
+  isPublished: boolean;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => VariantDto)
+  variants: VariantDto[];
 }
