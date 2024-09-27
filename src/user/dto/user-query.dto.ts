@@ -1,6 +1,6 @@
 import { IsOptional } from 'class-validator';
 
-export class OrdersQueryDto {
+export class UserQueryDto {
   @IsOptional()
   limit: number;
 
@@ -9,9 +9,6 @@ export class OrdersQueryDto {
 
   @IsOptional()
   sort: string;
-
-  @IsOptional()
-  status: string;
 
   @IsOptional()
   search: string;

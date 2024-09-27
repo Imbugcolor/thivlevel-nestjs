@@ -42,3 +42,5 @@ export class Order {
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
+
+OrderSchema.index({ name: 'text', email: 'text', phone: 'text', _id: 'text' });

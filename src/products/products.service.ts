@@ -62,7 +62,7 @@ export class ProductsService {
   ): Promise<PaginatedResult<Product>> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { limit, page, sizes, sort, ...queryString } = productQueryDto;
-    let filterQueryString: any = queryString;
+    let filterQueryString: { [key: string]: unknown } = queryString;
 
     if (productQueryDto.sizes) {
       const variant_ids: string[] = [];

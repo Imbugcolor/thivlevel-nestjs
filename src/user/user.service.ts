@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Document, Model } from 'mongoose';
 import { User } from './user.schema';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
@@ -27,6 +27,8 @@ import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyTokenDto } from './dto/verify-token.dto';
 import { Role } from './enum/role.enum';
+import { PaginatedResult, Paginator } from 'src/utils/Paginator';
+import { UserQueryDto } from './dto/user-query.dto';
 @Injectable()
 export class UserService {
   private client = new OAuth2Client(
@@ -34,6 +36,7 @@ export class UserService {
     `${process.env.GOOGLE_CLIENT_SECRET}`,
     'postmessage',
   );
+  private paginator: Paginator<User>;
 
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
@@ -41,11 +44,28 @@ export class UserService {
     private configService: ConfigService,
     private sendmailService: SendmailService,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) {
+    this.paginator = new Paginator<User>(this.userModel);
+  }
 
   async getUser(id: string): Promise<User> {
     const user = await this.userModel.findById(id);
     return user;
+  }
+
+  async getUsers(query: UserQueryDto): Promise<PaginatedResult<User>> {
+    const { limit, page, sort, ...queryString } = query;
+
+    const paginated = await this.paginator.paginate(queryString, {
+      limit,
+      page,
+      sort,
+    });
+
+    return new PaginatedResult<User>({
+      ...paginated,
+      data: paginated.data.map((user) => new User(user)),
+    });
   }
 
   async register(registerDto: RegisterDto): Promise<{ message: string }> {
@@ -439,14 +459,7 @@ export class UserService {
     }
   }
 
-  // githubLogin(req: Request, res) {
-  //   if (!req.user) {
-  //     return 'Not user auth';
-  //   }
-  //   return req.user;
-  // }
-
-  async signOut(userId: string, res) {
+  async signOut(userId: string, res: Response) {
     res.clearCookie('refreshtoken', { path: `/` });
 
     const user = await this.userModel.findById(userId);

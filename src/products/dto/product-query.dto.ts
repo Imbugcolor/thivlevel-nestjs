@@ -15,10 +15,10 @@ export class ProductQueryDto {
   category: string;
 
   @IsOptional()
-  'title[regex]': string;
+  search: string;
 
-  @IsOptional()
-  'product_id[regex]': string;
+  // @IsOptional()
+  // 'product_sku[regex]': string;
 
   @IsOptional()
   sizes: string;

@@ -59,7 +59,7 @@ export class CartService {
 
   async getCart(user: User): Promise<Cart> {
     try {
-      let cart = await this.validateCart(user._id, null);
+      const cart = await this.validateCart(user._id, null);
 
       if (!cart) {
         const cartData = {
@@ -71,43 +71,19 @@ export class CartService {
       } else {
         await Promise.all(
           cart.items.map(async (item) => {
-            if (!item.productId && user) {
-              await this.cartModel
-                .findOneAndUpdate(
-                  { userId: user._id },
-                  {
-                    $pull: {
-                      items: {
-                        _id: item._id,
-                      },
+            if (!item.productId || !item.productId.isPublished) {
+              await this.cartModel.findOneAndUpdate(
+                { userId: user._id },
+                {
+                  $pull: {
+                    items: {
+                      _id: item._id,
                     },
                   },
-                )
-                .populate([
-                  {
-                    path: 'items.productId',
-                    select:
-                      '_id product_sku price total title images isPublished',
-                  },
-                  {
-                    path: 'items.variantId',
-                    select: '_id color size inventory productId',
-                  },
-                ]);
+                },
+              );
 
-              const newCart = await this.cartModel
-                .findOne({ userId: user._id })
-                .populate([
-                  {
-                    path: 'items.productId',
-                    select:
-                      '_id product_sku price total title images isPublished',
-                  },
-                  {
-                    path: 'items.variantId',
-                    select: '_id color size inventory productId',
-                  },
-                ]);
+              const newCart = await this.validateCart(user._id, null);
 
               if (newCart) {
                 newCart.items.length <= 0
@@ -116,23 +92,31 @@ export class CartService {
                       .map((item) => item.total)
                       .reduce((acc, next) => acc + next));
 
-                cart = await newCart.save();
-                await cart.populate([
-                  {
-                    path: 'items.productId',
-                    select: 'name price total',
-                  },
-                  {
-                    path: 'items.variantId',
-                    select: '_id color size inventory productId',
-                  },
-                ]);
+                await newCart.save();
+              }
+            }
+            if (item.productId && item.productId.price !== item.price) {
+              await this.itemService.updateItem(item._id.toString(), {
+                price: item.productId.price,
+                total: item.productId.price * item.quantity,
+              });
+
+              const newCart = await this.validateCart(user._id, null);
+
+              if (newCart) {
+                newCart.items.length <= 0
+                  ? (newCart.subTotal = 0)
+                  : (newCart.subTotal = newCart.items
+                      .map((item) => item.total)
+                      .reduce((acc, next) => acc + next));
+
+                await newCart.save();
               }
             }
           }),
         );
       }
-      return cart;
+      return this.validateCart(user._id, null);
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException();

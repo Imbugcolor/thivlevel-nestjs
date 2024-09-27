@@ -13,7 +13,7 @@ export class ItemService {
     return item.save();
   }
 
-  async updateItem(id: string, item: any): Promise<Item> {
+  async updateItem(id: string, item: Partial<Item>): Promise<Item> {
     return this.itemModel.findByIdAndUpdate(id, item, { new: true });
   }
 

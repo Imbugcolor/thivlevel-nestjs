@@ -1,9 +1,21 @@
+import { Expose } from 'class-transformer';
 import { Model, FilterQuery } from 'mongoose';
 
-export interface PaginatedResult<T> {
+export class PaginatedResult<T> {
+  constructor(partial: Partial<PaginatedResult<T>>) {
+    Object.assign(this, partial);
+  }
+
+  @Expose()
   data: T[];
+
+  @Expose()
   total: number;
+
+  @Expose()
   limit: number;
+
+  @Expose()
   page: number;
 }
 
@@ -15,16 +27,23 @@ export class Paginator<T> {
     options: {
       limit?: number;
       page?: number;
-      sort?: any;
+      sort?: string;
       publish?: boolean;
-      select?: any;
+      select?: string[];
       populate?: any;
     },
   ): Promise<PaginatedResult<T>> {
     let queryStr = JSON.stringify(filter);
+
+    // convert params to operator $
     queryStr = queryStr.replace(
       /\b(gte|gt|lt|lte|regex)\b/g,
       (match) => '$' + match,
+    );
+
+    queryStr = queryStr.replace(
+      /"search":"([^"]+)"/,
+      '"$text": { "$search": "$1" }',
     );
 
     const queryFilter = JSON.parse(queryStr);
@@ -44,21 +63,37 @@ export class Paginator<T> {
     // Get total count of documents that match the filter
     const total = await this.model.countDocuments(queryFilter).exec();
 
+    const sortQuery = {};
+
+    if (sort) {
+      if (sort[0] === '-') {
+        const sortString = sort.substring(1);
+        sortQuery[`${sortString}`] = -1;
+      } else {
+        sortQuery[`${sort}`] = 1;
+      }
+    }
+
+    // sort by score full-text-search
+    if (filter.search) {
+      sortQuery['score'] = { $meta: 'textScore' };
+    }
+
     // Get the data with pagination, sorting, and field selection
     const data = await this.model
       .find(queryFilter)
       .limit(limit)
       .skip(skip)
-      .sort(sort ? sort : '-createdAt')
+      .sort({ ...sortQuery })
       .select(select)
       .populate(populate)
       .exec();
 
-    return {
-      data,
+    return new PaginatedResult<T>({
+      data: data.map((item) => item.toObject()),
       total,
       limit,
       page,
-    };
+    });
   }
 }

@@ -13,6 +13,8 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.schema';
@@ -28,6 +30,10 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { VerifyTokenDto } from './dto/verify-token.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Roles } from './auth/roles.decorator';
+import { Role } from './enum/role.enum';
+import { UserQueryDto } from './dto/user-query.dto';
+import { RolesGuard } from './auth/roles.guard';
 
 @Controller('user')
 @SerializeOptions({
@@ -143,6 +149,14 @@ export class UserController {
     return this.userService.adminLogIn(loginDto, res);
   }
 
+  @Get()
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  @UseInterceptors(ClassSerializerInterceptor)
+  getUsers(@Query() query: UserQueryDto) {
+    return this.userService.getUsers(query);
+  }
   // @Get('/google-auth')
   // @UseGuards(AuthGuard('google'))
   // // eslint-disable-next-line @typescript-eslint/no-empty-function
