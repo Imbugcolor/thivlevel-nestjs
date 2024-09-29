@@ -26,6 +26,20 @@ import { OrdersQueryDto } from './dto/orders-query.dto';
 export class OrderController {
   constructor(private orderService: OrderService) {}
 
+  @Get()
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async getOrders(@Query() orderQuery: OrdersQueryDto) {
+    return this.orderService.getOrders(orderQuery);
+  }
+
+  @Get('/:id')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async getOrder(@Param('id') id: string) {
+    return this.orderService.getOrder(id);
+  }
+
   @Get('/my')
   @UseGuards(AccessTokenGuard)
   async getMyOrders(
@@ -35,9 +49,9 @@ export class OrderController {
     return this.orderService.getMyOrders(user, orderQuery);
   }
 
-  @Get('/:id')
+  @Get('/my/:id')
   @UseGuards(AccessTokenGuard)
-  async getOrder(
+  async getMyOrder(
     @Param('id') id: string,
     @GetUser() user: User,
   ): Promise<Order> {

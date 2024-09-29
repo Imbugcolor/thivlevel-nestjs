@@ -74,16 +74,48 @@ export class OrderService {
   }
 
   async getMyOrder(id: string, user: User): Promise<Order> {
-    const order = await this.orderModel.findOne({
-      _id: id,
-      user: user._id.toString(),
-    });
+    const order = await this.orderModel
+      .findOne({
+        _id: id,
+        user: user._id.toString(),
+      })
+      .populate([
+        {
+          path: 'user',
+          select: '_id username email avatar phone gender',
+        },
+      ]);
 
     if (!order) {
       throw new NotFoundException(`Mã đơn: ${id} không tồn tại.`);
     }
 
     return order;
+  }
+
+  async getOrder(id: string): Promise<Order> {
+    const order = await this.orderModel.findById(id).populate([
+      {
+        path: 'user',
+        select: '_id username email avatar phone gender',
+      },
+    ]);
+
+    if (!order) {
+      throw new NotFoundException(`Mã đơn: ${id} không tồn tại.`);
+    }
+
+    return order;
+  }
+
+  async getOrders(query: OrdersQueryDto): Promise<PaginatedResult<Order>> {
+    const { limit, page, sort, ...queryString } = query;
+
+    return this.paginator.paginate(queryString, {
+      limit,
+      page,
+      sort,
+    });
   }
 
   async createCodOrder(
@@ -572,11 +604,21 @@ export class OrderService {
 
   // * ADMIN * //
   async getTotalRevenue() {
-    const orders = await this.orderModel.find({ isPaid: true }).lean();
+    const result = await this.orderModel.aggregate([
+      {
+        $match: {
+          isPaid: true,
+        },
+      },
+      {
+        $group: {
+          _id: null, // No specific grouping needed
+          totalSum: { $sum: '$total' },
+        },
+      },
+    ]);
 
-    const totalRevenue = orders.reduce((acc, curr) => {
-      return acc + curr.total;
-    }, 0);
+    const totalRevenue = result.length > 0 ? result[0].totalSum : 0;
 
     return totalRevenue;
   }
