@@ -27,6 +27,7 @@ import { RedisService } from 'src/redis/redis.service';
 import { EventsGateway } from 'src/events/events.gateway';
 import { PaginatedResult, Paginator } from 'src/utils/Paginator';
 import { OrdersQueryDto } from './dto/orders-query.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Injectable()
 export class OrderService {
@@ -332,6 +333,14 @@ export class OrderService {
     }
     const oldOrder = await this.orderModel.findById(id);
 
+    if (
+      oldOrder.status === OrderStatus.COMPLETED ||
+      oldOrder.status === OrderStatus.CANCELED
+    ) {
+      return new BadRequestException(
+        'Đơn hàng hiện tại không thể cập nhật trạng thái.',
+      );
+    }
     if (oldOrder.status === status) return oldOrder;
 
     const newOrder = await this.orderModel.findByIdAndUpdate(
@@ -621,5 +630,17 @@ export class OrderService {
     const totalRevenue = result.length > 0 ? result[0].totalSum : 0;
 
     return totalRevenue;
+  }
+
+  async updateOrder(id: string, updateDto: UpdateOrderDto) {
+    return await this.orderModel
+      .findByIdAndUpdate(id, updateDto, { new: true })
+      .populate([
+        {
+          path: 'user',
+          select: '_id username email avatar phone gender',
+        },
+      ])
+      .lean();
   }
 }

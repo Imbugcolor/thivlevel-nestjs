@@ -22,18 +22,19 @@ import { OrderStatus } from './enum/order-status.enum';
 import { Order } from './order.schema';
 import { PaypalTransactionDto } from './dto/paypaltransaction.dto';
 import { OrdersQueryDto } from './dto/orders-query.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 @Controller('order')
 export class OrderController {
   constructor(private orderService: OrderService) {}
 
-  @Get()
+  @Get('/all')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
   async getOrders(@Query() orderQuery: OrdersQueryDto) {
     return this.orderService.getOrders(orderQuery);
   }
 
-  @Get('/:id')
+  @Get('/detail/:id')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
   async getOrder(@Param('id') id: string) {
@@ -100,7 +101,7 @@ export class OrderController {
   }
 
   // *ADMIN* //
-  @Patch('/update-order-status/:id')
+  @Patch('/status/:id')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
   async updateOrderStatus(
@@ -109,6 +110,16 @@ export class OrderController {
     status: OrderStatus,
   ): Promise<Order> {
     return this.orderService.updateOrderStatus(id, status);
+  }
+
+  @Patch('/:id')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async updateOrder(
+    @Param('id') id: string,
+    @Body() updateOrder: UpdateOrderDto,
+  ): Promise<Order> {
+    return this.orderService.updateOrder(id, updateOrder);
   }
 
   @Get('/revenue/total')
