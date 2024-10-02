@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Document, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import { User } from './user.schema';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
@@ -131,12 +131,10 @@ export class UserService {
 
     const user = await this.userModel.findOne({ email }).lean();
 
-    if (user.role.some((rl) => rl === Role.Admin)) {
-      throw new UnauthorizedException('Không thể đăng nhập tài khoản quản trị');
-    }
-
     if (user && user.authStrategy !== AuthStrategy.LOCAL) {
-      throw new UnauthorizedException('Lỗi xác thực');
+      throw new UnauthorizedException(
+        'Tài khoản được xác thực bằng phương thức khác.',
+      );
     }
 
     if (user && (await bcrypt.compare(password, user.password))) {

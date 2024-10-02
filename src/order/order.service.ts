@@ -329,7 +329,7 @@ export class OrderService {
   async updateOrderStatus(id: string, status: OrderStatus): Promise<any> {
     const values = Object.values(OrderStatus);
     if (!values.includes(status as unknown as OrderStatus)) {
-      return new BadRequestException(`status value is wrong.`);
+      return new BadRequestException(`Yêu cầu không hợp lệ.`);
     }
     const oldOrder = await this.orderModel.findById(id);
 
@@ -337,15 +337,17 @@ export class OrderService {
       oldOrder.status === OrderStatus.COMPLETED ||
       oldOrder.status === OrderStatus.CANCELED
     ) {
-      return new BadRequestException(
-        'Đơn hàng hiện tại không thể cập nhật trạng thái.',
-      );
+      return new BadRequestException('Yêu cầu không hợp lệ.');
     }
     if (oldOrder.status === status) return oldOrder;
 
+    let isPaid = oldOrder.isPaid;
+    if (status === OrderStatus.COMPLETED) {
+      isPaid = true;
+    }
     const newOrder = await this.orderModel.findByIdAndUpdate(
       id,
-      { status },
+      { status, isPaid },
       { new: true },
     );
 
