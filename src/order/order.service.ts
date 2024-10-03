@@ -53,7 +53,7 @@ export class OrderService {
 
     if (variant.inventory - quantity < 0) {
       throw new BadRequestException(
-        `Inventory quantity product variant id: ${variant._id} is not enough.`,
+        `Biến thể: '${variant._id}' không đủ số lượng đặt hàng.`,
       );
     }
 
@@ -175,14 +175,19 @@ export class OrderService {
     // Checkout items in cart
     // Get cart
     const cart = await this.cartService.getCart(user);
-    await this.inventoryCount(cart.items, false);
 
     //validate before checkout
     await Promise.all(
       cart.items.map(async (item) => {
+        await this.productService.validateProduct(
+          item.productId._id.toString(),
+        );
         await this.validateItem(item.variantId._id.toString(), item.quantity);
       }),
     );
+
+    // sub inventory quantity before checkout process
+    await this.inventoryCount(cart.items, false);
 
     const customer = await this.stripe.customers.create({
       metadata: {
@@ -217,7 +222,7 @@ export class OrderService {
     return { url: session.url, status: session.payment_status };
   }
 
-  createWebhook(signature: string, req: Request) {
+  stripeWebhook(signature: string, req: Request) {
     let data: any;
     let eventType: string;
 
@@ -245,7 +250,7 @@ export class OrderService {
       this.stripe.customers
         .retrieve(data.customer)
         .then((customer) => {
-          this.createOrderCheckout(customer as Stripe.Customer, data);
+          this.createOrderByStripe(customer as Stripe.Customer, data);
         })
         .catch((err: any) => console.log(err.message));
     }
@@ -268,10 +273,10 @@ export class OrderService {
   async mapToCartOrder(cartItems: Item[]) {
     const newItems = await Promise.all(
       cartItems.map(async (item: Item) => {
-        const product = await this.productService.validateProduct(
+        const product = await this.productService.getProductWithoutJoin(
           item.productId._id.toString(),
         );
-        const variant = await this.variantService.validateVariant(
+        const variant = await this.variantService.getVariantWithoutJoin(
           item.variantId._id.toString(),
         );
         const { images, product_sku, title, price } = product;
@@ -292,10 +297,11 @@ export class OrderService {
 
     const cart = await this.cartService.getCart(user);
 
+    // recover inventory quantity when checkout canceled.
     await this.inventoryCount(cart.items, true);
   }
 
-  async createOrderCheckout(customer: Stripe.Customer, data: any) {
+  async createOrderByStripe(customer: Stripe.Customer, data: any) {
     const user = await this.userService.getUser(customer.metadata.user);
     const { email } = user;
 
@@ -450,11 +456,17 @@ export class OrderService {
    */
   async createPaypalTransaction(user: User, data: PaypalTransactionDto) {
     // use the cart information passed from the front-end to calculate the purchase unit details
-    console.log(
-      'shopping cart information passed from the frontend createOrder() callback:',
-      data,
-    );
     const cart = await this.cartService.validateCart(user._id, null);
+
+    // check cart valid before checkout
+    await Promise.all(
+      cart.items.map(async (item) => {
+        await this.productService.validateProduct(
+          item.productId._id.toString(),
+        );
+        await this.validateItem(item.variantId._id.toString(), item.quantity);
+      }),
+    );
 
     const baseUrl = this.configService.get('PAYPAL_BASE_URL');
 
@@ -498,6 +510,8 @@ export class OrderService {
         email: user.email,
       };
       await this.redisService.setTransaction(data.socketId, transaction_data);
+
+      // sub inventory quantity before checkout process
       await this.inventoryCount(cart.items, false);
 
       return {
@@ -511,8 +525,9 @@ export class OrderService {
   }
 
   // save order to DB
-  async submitOrder(socketId: string, captureID: string) {
+  async createOrderByPaypal(socketId: string, captureID: string) {
     try {
+      // retrive data transaction form redis
       const transactionData = await this.redisService.getTransaction(socketId);
       console.log('REDIS STORE', transactionData);
 
@@ -536,14 +551,17 @@ export class OrderService {
         isPaid: true,
       });
 
+      // calculate sold quantity each item.
       this.soldCount(cart.items, false);
 
       const createOrder = await newOrder.save();
 
       await this.cartService.emptyCart(cart._id);
 
+      // send message checkout complete to client when create order completed.
       this.eventsGateway.orderTransactionSucessEvent(socketId);
 
+      // delete data transaction from redis when create order completed.
       await this.redisService.deleteTransaction(socketId);
 
       return createOrder;
@@ -566,14 +584,17 @@ export class OrderService {
       null,
     );
 
+    // Recover inventory quantity when checkout canceled.
     await this.inventoryCount(cart.items, true);
+
+    // delete data transaction from redis when checkout canceled.
+    await this.redisService.deleteTransaction(socketId);
   }
 
-  async paypalWebhookCompleteOrder(req: Request) {
+  async paypalWebhook(req: Request) {
     const webhookEvent = req.body;
     const socketId = webhookEvent.resource.custom_id;
     const captureID = webhookEvent.resource.id;
-    console.log(webhookEvent.resource);
 
     try {
       const isValid = await this.paypalService.verifyWebhook(
@@ -585,7 +606,7 @@ export class OrderService {
         console.log('Webhook event', webhookEvent);
 
         if (webhookEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-          await this.submitOrder(socketId, captureID);
+          await this.createOrderByPaypal(socketId, captureID);
         }
 
         if (webhookEvent.event_type === 'CHECKOUT.PAYMENT-APPROVAL.REVERSED') {

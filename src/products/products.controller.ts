@@ -35,6 +35,15 @@ export class ProductsController {
     return this.productService.getProduct(id);
   }
 
+  @Get('/deleted')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async getDeletedProducts(
+    @Query() productQueryDto: ProductQueryDto,
+  ): Promise<PaginatedResult<Product>> {
+    return this.productService.getDeletedProducts(productQueryDto);
+  }
+
   @Post()
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
@@ -60,5 +69,12 @@ export class ProductsController {
     @Body('publish') publish: boolean,
   ): Promise<Product> {
     return this.productService.updatePublish(id, publish);
+  }
+
+  @Patch('/:id/delete')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  deleteProduct(@Param('id') id: string): Promise<Product> {
+    return this.productService.deleteProduct(id);
   }
 }

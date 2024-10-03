@@ -23,8 +23,17 @@ export class ProductsService {
 
   async validateProduct(id: string): Promise<Product> {
     const product = await this.productModel.findById(id);
+    if (!product || !product.isPublished || product.isDeleted) {
+      throw new NotFoundException(`Sản phẩm: '${id}' không tồn tại.`);
+    }
+
+    return product;
+  }
+
+  async getProductWithoutJoin(id: string): Promise<Product> {
+    const product = await this.productModel.findById(id);
     if (!product) {
-      throw new NotFoundException(`Product id: ${id} is not exist.`);
+      throw new NotFoundException(`Sản phẩm: '${id}' không tồn tại.`);
     }
     return product;
   }
@@ -51,7 +60,7 @@ export class ProductsService {
         },
       },
     ]);
-    if (!product) {
+    if (!product || product.isDeleted) {
       throw new NotFoundException(`Product id: ${id} is not exist.`);
     }
     return product;
@@ -60,13 +69,18 @@ export class ProductsService {
   async getProducts(
     productQueryDto: ProductQueryDto,
   ): Promise<PaginatedResult<Product>> {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { limit, page, sizes, sort, ...queryString } = productQueryDto;
-    let filterQueryString: { [key: string]: unknown } = queryString;
 
-    if (productQueryDto.sizes) {
+    // filter query
+    let filterQueryString: { [key: string]: unknown } = {
+      ...queryString,
+      isDeleted: false,
+    };
+
+    // filter by variant size
+    if (sizes) {
       const variant_ids: string[] = [];
-      const sizesArray = productQueryDto.sizes.split(',');
+      const sizesArray = sizes.split(',');
 
       const variantsArr = await this.variantService.getVariantsByQuery({
         size: { $in: sizesArray },
@@ -79,6 +93,7 @@ export class ProductsService {
       filterQueryString = { ...queryString, variants: { $in: variant_ids } };
     }
 
+    // JOIN
     const populate = [
       {
         path: 'category',
@@ -90,6 +105,7 @@ export class ProductsService {
       },
     ];
 
+    // Paginator & Filter & Sort
     return this.paginator.paginate(filterQueryString, {
       limit,
       page,
@@ -215,11 +231,70 @@ export class ProductsService {
     return product;
   }
 
+  async getDeletedProducts(
+    productQueryDto: ProductQueryDto,
+  ): Promise<PaginatedResult<Product>> {
+    const { limit, page, sizes, sort, ...queryString } = productQueryDto;
+
+    // filter query
+    let filterQueryString: { [key: string]: unknown } = {
+      ...queryString,
+      isDeleted: true,
+    };
+
+    // filter by variant size
+    if (sizes) {
+      const variant_ids: string[] = [];
+      const sizesArray = sizes.split(',');
+
+      const variantsArr = await this.variantService.getVariantsByQuery({
+        size: { $in: sizesArray },
+      });
+
+      variantsArr.forEach((item: Variant) => {
+        return variant_ids.push(item._id.toString());
+      });
+
+      filterQueryString = { ...queryString, variants: { $in: variant_ids } };
+    }
+
+    // JOIN
+    const populate = [
+      {
+        path: 'category',
+        select: '_id name createdAt updatedAt',
+      },
+      {
+        path: 'variants',
+        select: 'size color inventory productId',
+      },
+    ];
+
+    // Paginator & Filter & Sort
+    return this.paginator.paginate(filterQueryString, {
+      limit,
+      page,
+      sort,
+      populate,
+    });
+  }
+
   async updateSold(id: string, sold: number): Promise<Product> {
     return this.productModel.findByIdAndUpdate(id, { sold });
   }
 
   async updatePublish(id: string, publish: boolean) {
     return this.productModel.findByIdAndUpdate(id, { isPublished: publish });
+  }
+
+  async deleteProduct(id: string) {
+    return this.productModel.findByIdAndUpdate(id, {
+      isDeleted: true,
+      deletedAt: new Date(),
+    });
+  }
+
+  async recoverProduct(id: string) {
+    return this.productModel.findByIdAndUpdate(id, { isDeleted: false });
   }
 }

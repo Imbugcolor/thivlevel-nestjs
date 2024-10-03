@@ -97,7 +97,7 @@ export class OrderController {
 
   @Post('/paypalwebhook')
   async paypalWebhook(@Req() req: Request) {
-    return this.orderService.paypalWebhookCompleteOrder(req);
+    return this.orderService.paypalWebhook(req);
   }
 
   // *ADMIN* //

@@ -15,7 +15,7 @@ import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartAction } from './enum/update-cart-action.enum';
 import { DeleteItemDto } from './dto/delete-item-cart.dto';
 import { User } from 'src/user/user.schema';
-
+import { Item } from 'src/item/item.schema';
 @Injectable()
 export class CartService {
   constructor(
@@ -40,7 +40,8 @@ export class CartService {
     const cart: Cart = await fcart.populate([
       {
         path: 'items.productId',
-        select: '_id product_sku price total title images isPublished',
+        select:
+          '_id product_sku price total title images isPublished isDeleted',
       },
       {
         path: 'items.variantId',
@@ -61,6 +62,7 @@ export class CartService {
     try {
       const cart = await this.validateCart(user._id, null);
 
+      // if user have not already a cart, create a emtpy cart for user
       if (!cart) {
         const cartData = {
           userId: user._id,
@@ -69,16 +71,21 @@ export class CartService {
         };
         return this.createCart(cartData);
       } else {
+        // save array Id of items which not exists to remove
+        const unavailableItems: Item[] = [];
         await Promise.all(
           cart.items.map(async (item) => {
-            if (!item.productId || !item.productId.isPublished) {
+            if (
+              !item.productId ||
+              !item.productId.isPublished ||
+              item.productId.isDeleted
+            ) {
+              unavailableItems.push(item);
               await this.cartModel.findOneAndUpdate(
                 { userId: user._id },
                 {
                   $pull: {
-                    items: {
-                      _id: item._id,
-                    },
+                    items: item._id,
                   },
                 },
               );
@@ -115,6 +122,7 @@ export class CartService {
             }
           }),
         );
+        await this.itemService.deleteArrayItems(unavailableItems);
       }
       return this.validateCart(user._id, null);
     } catch (error) {
@@ -135,7 +143,7 @@ export class CartService {
     if (
       !product.variants.find((variant) => variant._id.toString() === variantId)
     ) {
-      throw new NotFoundException('This product not includes this variant id.');
+      throw new NotFoundException('biến thể sản phẩm hiện tại không tồn tại.');
     }
 
     const newItem = {

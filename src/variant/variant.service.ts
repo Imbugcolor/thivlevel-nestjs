@@ -19,7 +19,15 @@ export class VariantService {
   async validateVariant(id: string): Promise<Variant> {
     const variant = await this.variantModel.findById(id);
     if (!variant) {
-      throw new NotFoundException(`This variant id: ${id} not exists.`);
+      throw new NotFoundException(`Biến thể: '${id}' không tồn tại.`);
+    }
+    return variant;
+  }
+
+  async getVariantWithoutJoin(id: string): Promise<Variant> {
+    const variant = await this.variantModel.findById(id);
+    if (!variant) {
+      throw new NotFoundException(`Biến thể: '${id}' không tồn tại.`);
     }
     return variant;
   }

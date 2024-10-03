@@ -75,6 +75,14 @@ export class Product {
   @Prop({ default: true })
   @Expose()
   isPublished: boolean;
+
+  @Prop({ default: false })
+  @Expose()
+  isDeleted: boolean;
+
+  @Prop({ type: Date })
+  @Expose()
+  deletedAt: Date;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

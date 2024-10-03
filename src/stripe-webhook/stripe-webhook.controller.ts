@@ -16,6 +16,6 @@ export class StripeWebhookController {
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');
     }
-    return this.orderService.createWebhook(signature, req);
+    return this.orderService.stripeWebhook(signature, req);
   }
 }
