@@ -68,13 +68,14 @@ export class ProductsService {
 
   async getProducts(
     productQueryDto: ProductQueryDto,
+    deleted = false,
   ): Promise<PaginatedResult<Product>> {
     const { limit, page, sizes, sort, ...queryString } = productQueryDto;
 
     // filter query
     let filterQueryString: { [key: string]: unknown } = {
       ...queryString,
-      isDeleted: false,
+      isDeleted: deleted,
     };
 
     // filter by variant size
@@ -112,6 +113,14 @@ export class ProductsService {
       sort,
       populate,
     });
+  }
+
+  async getAvailableProducts(productQueryDto: ProductQueryDto) {
+    return this.getProducts(productQueryDto);
+  }
+
+  async getDeletedProducts(productQueryDto: ProductQueryDto) {
+    return this.getProducts(productQueryDto, true);
   }
 
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
@@ -231,54 +240,6 @@ export class ProductsService {
     return product;
   }
 
-  async getDeletedProducts(
-    productQueryDto: ProductQueryDto,
-  ): Promise<PaginatedResult<Product>> {
-    const { limit, page, sizes, sort, ...queryString } = productQueryDto;
-
-    // filter query
-    let filterQueryString: { [key: string]: unknown } = {
-      ...queryString,
-      isDeleted: true,
-    };
-
-    // filter by variant size
-    if (sizes) {
-      const variant_ids: string[] = [];
-      const sizesArray = sizes.split(',');
-
-      const variantsArr = await this.variantService.getVariantsByQuery({
-        size: { $in: sizesArray },
-      });
-
-      variantsArr.forEach((item: Variant) => {
-        return variant_ids.push(item._id.toString());
-      });
-
-      filterQueryString = { ...queryString, variants: { $in: variant_ids } };
-    }
-
-    // JOIN
-    const populate = [
-      {
-        path: 'category',
-        select: '_id name createdAt updatedAt',
-      },
-      {
-        path: 'variants',
-        select: 'size color inventory productId',
-      },
-    ];
-
-    // Paginator & Filter & Sort
-    return this.paginator.paginate(filterQueryString, {
-      limit,
-      page,
-      sort,
-      populate,
-    });
-  }
-
   async updateSold(id: string, sold: number): Promise<Product> {
     return this.productModel.findByIdAndUpdate(id, { sold });
   }
@@ -294,7 +255,7 @@ export class ProductsService {
     });
   }
 
-  async recoverProduct(id: string) {
+  async restoreProduct(id: string) {
     return this.productModel.findByIdAndUpdate(id, { isDeleted: false });
   }
 }

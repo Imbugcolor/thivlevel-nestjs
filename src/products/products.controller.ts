@@ -23,16 +23,11 @@ import { PaginatedResult } from 'src/utils/Paginator';
 export class ProductsController {
   constructor(private productService: ProductsService) {}
 
-  @Get()
+  @Get('/')
   async getProducts(
     @Query() productQueryDto: ProductQueryDto,
   ): Promise<PaginatedResult<Product>> {
     return this.productService.getProducts(productQueryDto);
-  }
-
-  @Get('/:id')
-  async getProduct(@Param('id') id: string): Promise<Product> {
-    return this.productService.getProduct(id);
   }
 
   @Get('/deleted')
@@ -42,6 +37,11 @@ export class ProductsController {
     @Query() productQueryDto: ProductQueryDto,
   ): Promise<PaginatedResult<Product>> {
     return this.productService.getDeletedProducts(productQueryDto);
+  }
+
+  @Get('/:id')
+  async getProduct(@Param('id') id: string): Promise<Product> {
+    return this.productService.getProduct(id);
   }
 
   @Post()
@@ -76,5 +76,12 @@ export class ProductsController {
   @Roles(Role.Admin)
   deleteProduct(@Param('id') id: string): Promise<Product> {
     return this.productService.deleteProduct(id);
+  }
+
+  @Patch('/:id/restore')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  restoreProduct(@Param('id') id: string): Promise<Product> {
+    return this.productService.restoreProduct(id);
   }
 }
