@@ -27,6 +27,8 @@ import { PaypalModule } from './paypal/paypal.module';
 import { RedisModule } from './redis/redis.module';
 import { EventsModule } from './events/events.module';
 import { OtpModule } from './otp/otp.module';
+import { VnpayModule } from './vnpay/vnpay.module';
+import { CurrencyModule } from './currency/currency.module';
 
 @Module({
   imports: [
@@ -80,6 +82,8 @@ import { OtpModule } from './otp/otp.module';
     RedisModule,
     EventsModule,
     OtpModule,
+    VnpayModule,
+    CurrencyModule,
   ],
   controllers: [StripeWebhookController],
 })

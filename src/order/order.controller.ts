@@ -23,6 +23,7 @@ import { Order } from './order.schema';
 import { PaypalTransactionDto } from './dto/paypaltransaction.dto';
 import { OrdersQueryDto } from './dto/orders-query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { VnpayCheckoutDto } from './dto/vnpay-checkout.dto';
 @Controller('order')
 export class OrderController {
   constructor(private orderService: OrderService) {}
@@ -98,6 +99,16 @@ export class OrderController {
   @Post('/paypalwebhook')
   async paypalWebhook(@Req() req: Request) {
     return this.orderService.paypalWebhook(req);
+  }
+
+  @Post('/create-vnpay-checkout')
+  @UseGuards(AccessTokenGuard)
+  async createVnpayCheckout(
+    @Req() req: Request,
+    @Body() vnpayCheckoutDto: VnpayCheckoutDto,
+    @GetUser() user: User,
+  ) {
+    return this.orderService.createVnpayCheckout(req, user, vnpayCheckoutDto);
   }
 
   // *ADMIN* //

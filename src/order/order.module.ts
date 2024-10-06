@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { OrderController } from './order.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -11,6 +11,8 @@ import { ConfigModule } from '@nestjs/config';
 import { PaypalModule } from 'src/paypal/paypal.module';
 import { RedisModule } from 'src/redis/redis.module';
 import { EventsModule } from 'src/events/events.module';
+import { VnpayModule } from 'src/vnpay/vnpay.module';
+import { CurrencyModule } from 'src/currency/currency.module';
 
 @Module({
   imports: [
@@ -21,8 +23,10 @@ import { EventsModule } from 'src/events/events.module';
     CartModule,
     UserModule,
     PaypalModule,
+    forwardRef(() => VnpayModule),
     RedisModule,
     EventsModule,
+    CurrencyModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

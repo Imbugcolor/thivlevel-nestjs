@@ -1,6 +1,8 @@
 import {
   BadGatewayException,
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -28,6 +30,13 @@ import { EventsGateway } from 'src/events/events.gateway';
 import { PaginatedResult, Paginator } from 'src/utils/Paginator';
 import { OrdersQueryDto } from './dto/orders-query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { VnpayService } from 'src/vnpay/vnpay.service';
+import { VnpayCheckoutDto } from './dto/vnpay-checkout.dto';
+import {
+  PaypalTransactionDataType,
+  VnpayTransactionDataType,
+} from './type/transaction.type';
+import { CurrencyService } from 'src/currency/currency.service';
 
 @Injectable()
 export class OrderService {
@@ -44,6 +53,9 @@ export class OrderService {
     private paypalService: PaypalService,
     private redisService: RedisService,
     private eventsGateway: EventsGateway,
+    @Inject(forwardRef(() => VnpayService))
+    private vnpayService: VnpayService,
+    private currencyService: CurrencyService,
   ) {
     this.paginator = new Paginator<Order>(this.orderModel);
   }
@@ -504,7 +516,7 @@ export class OrderService {
 
     try {
       const jsonResponse = await response.json();
-      const transaction_data = {
+      const transaction_data: PaypalTransactionDataType = {
         ...data,
         userId: user._id.toString(),
         email: user.email,
@@ -528,7 +540,10 @@ export class OrderService {
   async createOrderByPaypal(socketId: string, captureID: string) {
     try {
       // retrive data transaction form redis
-      const transactionData = await this.redisService.getTransaction(socketId);
+      const transactionData =
+        await this.redisService.getTransaction<PaypalTransactionDataType>(
+          socketId,
+        );
       console.log('REDIS STORE', transactionData);
 
       const { userId, email, name, phone, address } = transactionData;
@@ -574,7 +589,10 @@ export class OrderService {
   }
 
   async abortPaypalCheckout(socketId: string) {
-    const transactionData = await this.redisService.getTransaction(socketId);
+    const transactionData =
+      await this.redisService.getTransaction<PaypalTransactionDataType>(
+        socketId,
+      );
     console.log('REDIS STORE', transactionData);
 
     const { userId } = transactionData;
@@ -632,6 +650,97 @@ export class OrderService {
     }
 
     return { message: 'Đặt hàng thành công.' };
+  }
+
+  async createVnpayCheckout(
+    req: Request,
+    user: User,
+    vnpayCheckoutData: VnpayCheckoutDto,
+  ) {
+    // use the cart information passed from the front-end to calculate the purchase unit details
+    const cart = await this.cartService.validateCart(user._id, null);
+
+    // check cart valid before checkout
+    await Promise.all(
+      cart.items.map(async (item) => {
+        await this.productService.validateProduct(
+          item.productId._id.toString(),
+        );
+        await this.validateItem(item.variantId._id.toString(), item.quantity);
+      }),
+    );
+
+    const ipAddr =
+      req.headers['x-forwarded-for'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress;
+
+    const orderInfo = `Thanh toán cho đơn hàng của Thivlevel`;
+
+    const amount = await this.currencyService.convertUSDtoVND(cart.subTotal);
+
+    const transactionData = {
+      ...vnpayCheckoutData,
+      userId: user._id.toString(),
+      email: user.email,
+    };
+    // Call service to generate the VNPAY payment URL
+    const paymentUrl = await this.vnpayService.createVnpayPaymentUrl(
+      transactionData,
+      orderInfo,
+      amount,
+      ipAddr,
+    );
+
+    return { paymentUrl };
+  }
+
+  // save order to DB
+  async createOrderByVnpay(orderId: string, transactionNo: string) {
+    try {
+      // retrive data transaction form redis
+      const transactionData =
+        await this.redisService.getTransaction<VnpayTransactionDataType>(
+          orderId,
+        );
+      console.log('REDIS STORE', transactionData);
+
+      const { userId, email, name, phone, address } = transactionData;
+      const cart = await this.cartService.validateCart(
+        new Types.ObjectId(userId),
+        null,
+      );
+      const newItems = await this.mapToCartOrder(cart.items);
+
+      const newOrder = new this.orderModel({
+        user: userId,
+        name,
+        email,
+        items: newItems,
+        paymentId: transactionNo,
+        address,
+        total: cart.subTotal,
+        phone,
+        method: OrderMethod.eWALLET,
+        isPaid: true,
+      });
+
+      // calculate sold & stock quantity each item.
+      this.inventoryCount(cart.items, false);
+      this.soldCount(cart.items, false);
+
+      const createOrder = await newOrder.save();
+
+      await this.cartService.emptyCart(cart._id);
+
+      // delete data transaction from redis when create order completed.
+      await this.redisService.deleteTransaction(orderId);
+
+      return createOrder;
+    } catch (err) {
+      console.log(err);
+      throw new BadGatewayException(err.message);
+    }
   }
 
   // * ADMIN * //

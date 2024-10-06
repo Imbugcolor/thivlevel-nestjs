@@ -1,8 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache } from 'cache-manager';
-import { PaypalTransactionData } from 'src/order/type/paypal.transaction';
-
 @Injectable()
 export class RedisService {
   constructor(@Inject(CACHE_MANAGER) private readonly cacheManager: Cache) {}
@@ -16,10 +14,7 @@ export class RedisService {
     }
   }
 
-  async setTransaction(
-    key: string,
-    value: PaypalTransactionData,
-  ): Promise<string> {
+  async setTransaction<T>(key: string, value: T): Promise<string> {
     try {
       await this.cacheManager.store.set(key, JSON.stringify(value));
       return 'OK';
@@ -28,7 +23,7 @@ export class RedisService {
     }
   }
 
-  async getTransaction(key: string): Promise<PaypalTransactionData> {
+  async getTransaction<T>(key: string): Promise<T> {
     try {
       const data: string = await this.cacheManager.get(key);
       return JSON.parse(data);
