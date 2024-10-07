@@ -127,19 +127,21 @@ export class VnpayService {
       .update(Buffer.from(querystring, 'utf-8'))
       .digest('hex');
 
+    const orderId = vnpParams['vnp_TxnRef'];
     if (secureHash === signData) {
       if (vnpParams['vnp_ResponseCode'] === '00') {
         // Payment is successful
-        const orderId = vnpParams['vnp_TxnRef'];
         const transactionNo = vnpParams['vnp_TransactionNo'];
 
         await this.orderService.createOrderByVnpay(orderId, transactionNo);
 
         return { message: 'IPN success', orderId: vnpParams['vnp_TxnRef'] };
       } else {
+        await this.redisService.deleteTransaction(orderId);
         return { message: 'IPN failed', orderId: vnpParams['vnp_TxnRef'] };
       }
     } else {
+      await this.redisService.deleteTransaction(orderId);
       return { message: 'Invalid checksum' };
     }
   }

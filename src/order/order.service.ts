@@ -138,46 +138,29 @@ export class OrderService {
     const { name, phone, address } = createOrderDto;
     const { email } = user;
 
-    // Checkout items in cart
-    // Get cart
-    const cart = await this.cartService.getCart(user);
-
-    const newItems = await Promise.all(
-      cart.items.map(async (item) => {
-        const product = await this.productService.validateProduct(
-          item.productId._id.toString(),
-        );
-        const variant = await this.variantService.validateVariant(
-          item.variantId._id.toString(),
-        );
-
-        const { images, product_sku, title, price } = product;
-        const { inventory, size, color, productId } = variant;
-
-        return {
-          ...item,
-          productId: { _id: item.productId, images, product_sku, title, price },
-          variantId: { _id: item.variantId, inventory, size, color, productId },
-        };
-      }),
-    );
+    const cart = await this.cartService.validateCart(user._id, null);
+    const newItems = await this.mapToCartOrder(cart.items);
 
     const newOrder = new this.orderModel({
-      user,
+      user: user._id.toString(),
       name,
       email,
-      phone,
-      address,
       items: newItems,
+      address,
       total: cart.subTotal,
+      phone,
       method: OrderMethod.COD,
     });
 
-    await this.inventoryCount(cart.items, false);
+    // calculate sold & stock quantity each item.
+    this.inventoryCount(cart.items, false);
     this.soldCount(cart.items, false);
-    const orderData = await newOrder.save();
+
+    const createOrder = await newOrder.save();
+
     await this.cartService.emptyCart(cart._id);
-    return orderData;
+
+    return createOrder;
   }
 
   // Create Checkout Session = Stripe to Payment
@@ -331,7 +314,7 @@ export class OrderService {
       address,
       total: data.amount_total / 100,
       phone: customer.metadata.phone,
-      method: OrderMethod.CARD,
+      method: OrderMethod.STRIPE_CREDIT_CARD,
       isPaid: true,
     });
 
@@ -562,7 +545,7 @@ export class OrderService {
         address,
         total: cart.subTotal,
         phone,
-        method: OrderMethod.CARD,
+        method: OrderMethod.PAYPAL_CREDIT_CARD,
         isPaid: true,
       });
 
@@ -721,7 +704,7 @@ export class OrderService {
         address,
         total: cart.subTotal,
         phone,
-        method: OrderMethod.eWALLET,
+        method: OrderMethod.VNPAY,
         isPaid: true,
       });
 

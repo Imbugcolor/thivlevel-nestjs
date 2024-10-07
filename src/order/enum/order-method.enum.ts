@@ -1,5 +1,6 @@
 export enum OrderMethod {
   COD = 'COD',
-  CARD = 'CARD',
-  eWALLET = 'E-WALLET',
+  PAYPAL_CREDIT_CARD = 'PAYPAL_CREDIT_CARD',
+  STRIPE_CREDIT_CARD = 'STRIPE_CREDIT_CARD',
+  VNPAY = 'VNPAY',
 }
