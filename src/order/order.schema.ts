@@ -3,10 +3,12 @@ import { AddressType } from 'src/utils/address.type';
 import { OrderMethod } from './enum/order-method.enum';
 import { OrderStatus } from './enum/order-status.enum';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class Order {
+  _id?: Types.ObjectId;
+
   @Prop({ type: mongoose.Types.ObjectId, ref: User.name, required: true })
   user: User;
 
@@ -35,7 +37,7 @@ export class Order {
   isPaid: boolean;
 
   @Prop({ type: Array, required: true })
-  items: [];
+  items: any[];
 
   @Prop({ default: OrderStatus.PENDING })
   status: OrderStatus;

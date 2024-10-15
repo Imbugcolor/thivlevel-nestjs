@@ -13,6 +13,7 @@ import { RedisModule } from 'src/redis/redis.module';
 import { EventsModule } from 'src/events/events.module';
 import { VnpayModule } from 'src/vnpay/vnpay.module';
 import { CurrencyModule } from 'src/currency/currency.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CurrencyModule } from 'src/currency/currency.module';
     RedisModule,
     EventsModule,
     CurrencyModule,
+    NotificationModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

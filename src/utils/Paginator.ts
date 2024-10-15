@@ -1,6 +1,5 @@
 import { Expose } from 'class-transformer';
-import { Model, FilterQuery } from 'mongoose';
-
+import { Model, FilterQuery, Types } from 'mongoose';
 export class PaginatedResult<T> {
   constructor(partial: Partial<PaginatedResult<T>>) {
     Object.assign(this, partial);
@@ -33,7 +32,29 @@ export class Paginator<T> {
       populate?: any;
     },
   ): Promise<PaginatedResult<T>> {
-    let queryStr = JSON.stringify(filter);
+    // Function to filter keys with ObjectId values
+    function filterObjectIdField(obj: FilterQuery<T>) {
+      // Use Object.entries to get key-value pairs and filter them
+      return Object.fromEntries(
+        Object.entries(obj).filter(
+          ([key, value]) => value instanceof Types.ObjectId,
+        ),
+      );
+    }
+
+    function filterNotObjectIdField(obj: FilterQuery<T>) {
+      // Use Object.entries to get key-value pairs and filter them
+      return Object.fromEntries(
+        Object.entries(obj).filter(
+          ([key, value]) => !(value instanceof Types.ObjectId),
+        ),
+      );
+    }
+
+    // Use the function to filter the object
+    const filteredObjectIds = filterObjectIdField(filter);
+    const filterFields = filterNotObjectIdField(filter);
+    let queryStr = JSON.stringify(filterFields);
 
     // convert params to operator $
     queryStr = queryStr.replace(
@@ -47,6 +68,9 @@ export class Paginator<T> {
     );
 
     const queryFilter = JSON.parse(queryStr);
+    Object.entries(filteredObjectIds).forEach(([key, value]) => {
+      queryFilter[key] = value;
+    });
     // lte, gte = less/greater than or equal
     // lt, gt = less/greater than
     // regex = compare ~ string

@@ -37,6 +37,10 @@ import {
   VnpayTransactionDataType,
 } from './type/transaction.type';
 import { CurrencyService } from 'src/currency/currency.service';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationType } from 'src/notification/enum/notificaton.enum';
+import { Notification } from 'src/notification/notification.schema';
+import { UserNotification } from 'src/notification/userNotification/userNotification.shema';
 
 @Injectable()
 export class OrderService {
@@ -56,6 +60,7 @@ export class OrderService {
     @Inject(forwardRef(() => VnpayService))
     private vnpayService: VnpayService,
     private currencyService: CurrencyService,
+    private notificationService: NotificationService,
   ) {
     this.paginator = new Paginator<Order>(this.orderModel);
   }
@@ -131,6 +136,68 @@ export class OrderService {
     });
   }
 
+  async notificationForCreateOrder(order: Order) {
+    const order_url = `${this.configService.get('ORDER_ADMIN_ENDPOINT')}/${
+      order._id
+    }`;
+    const notification = await this.notificationService.createAdminNotification(
+      {
+        title: 'Có đơn hàng mới.',
+        message: `Người dùng ${order.email} vừa đặt 1 đơn hàng.`,
+        target_url: order_url,
+        image_url: order.items[0].productId.images[0].url,
+      },
+    );
+    this.eventsGateway.sendNotification<Notification>({
+      adminNotification: true,
+      message: notification,
+    });
+  }
+
+  async notificationForUpdateStatusOrder(
+    orderId: string,
+    userId: any,
+    imageUrl: string,
+    status: OrderStatus,
+  ) {
+    let statusMessage = '';
+    switch (status) {
+      case OrderStatus.PROCESSING:
+        statusMessage = 'đang được xử lý';
+        break;
+      case OrderStatus.SHIPPING:
+        statusMessage = 'đã được gửi cho đơn vị vận chuyển';
+        break;
+      case OrderStatus.DELIVERED:
+        statusMessage = 'đã được giao';
+        break;
+      case OrderStatus.COMPLETED:
+        statusMessage = 'đã hoàn tất';
+        break;
+      case OrderStatus.CANCELED:
+        statusMessage = 'đã bị hủy';
+        break;
+      default:
+        statusMessage = 'đang chờ xử lý';
+    }
+    const order_url = `${this.configService.get(
+      'ORDER_USER_ENDPOINT',
+    )}/${orderId}`;
+    const data = {
+      receiver: userId,
+      title: 'Đơn hàng',
+      type: NotificationType.ORDER,
+      message: `Đơn hàng ${orderId} ${statusMessage}.`,
+      image_url: imageUrl,
+      target_url: order_url,
+    };
+    const notify = await this.notificationService.createNotification(data);
+    this.eventsGateway.sendNotification<UserNotification>({
+      userId: userId,
+      message: notify,
+    });
+  }
+
   async createCodOrder(
     createOrderDto: CreateOrderDto,
     user: User,
@@ -159,6 +226,8 @@ export class OrderService {
     const createOrder = await newOrder.save();
 
     await this.cartService.emptyCart(cart._id);
+
+    this.notificationForCreateOrder(createOrder.toObject());
 
     return createOrder;
   }
@@ -323,6 +392,7 @@ export class OrderService {
     const orderData = await newOrder.save();
 
     await this.cartService.emptyCart(cart._id);
+    this.notificationForCreateOrder(orderData);
 
     return orderData;
   }
@@ -346,11 +416,9 @@ export class OrderService {
     if (status === OrderStatus.COMPLETED) {
       isPaid = true;
     }
-    const newOrder = await this.orderModel.findByIdAndUpdate(
-      id,
-      { status, isPaid },
-      { new: true },
-    );
+    const newOrder = await this.orderModel
+      .findByIdAndUpdate(id, { status, isPaid }, { new: true })
+      .lean();
 
     if (status === OrderStatus.CANCELED) {
       const items = (newOrder.items as any).map((item: any) => {
@@ -364,6 +432,13 @@ export class OrderService {
 
       this.soldCount(items, true);
     }
+
+    this.notificationForUpdateStatusOrder(
+      newOrder._id.toString(),
+      newOrder.user,
+      newOrder.items[0].productId.images[0].url,
+      status,
+    );
 
     return newOrder;
   }
@@ -467,6 +542,15 @@ export class OrderService {
 
     const accessToken = await this.paypalService.generateAccessToken();
     const url = `${baseUrl}/v2/checkout/orders`;
+
+    const date = new Date();
+    const createDate = date
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', '')
+      .replace(/[-:]/g, '');
+    const transactionId = createDate + Math.floor(Math.random() * 1000000);
+
     const payload = {
       intent: 'CAPTURE',
       purchase_units: [
@@ -475,7 +559,7 @@ export class OrderService {
             currency_code: 'USD',
             value: cart.subTotal.toFixed(2),
           },
-          custom_id: data.socketId, // Example of custom data
+          custom_id: transactionId, // Example of custom data
         },
       ],
       application_context: {
@@ -504,7 +588,7 @@ export class OrderService {
         userId: user._id.toString(),
         email: user.email,
       };
-      await this.redisService.setTransaction(data.socketId, transaction_data);
+      await this.redisService.setTransaction(transactionId, transaction_data);
 
       // sub inventory quantity before checkout process
       await this.inventoryCount(cart.items, false);
@@ -520,15 +604,12 @@ export class OrderService {
   }
 
   // save order to DB
-  async createOrderByPaypal(socketId: string, captureID: string) {
+  async createOrderByPaypal(transactionId: string, captureID: string) {
+    const transactionData =
+      await this.redisService.getTransaction<PaypalTransactionDataType>(
+        transactionId,
+      );
     try {
-      // retrive data transaction form redis
-      const transactionData =
-        await this.redisService.getTransaction<PaypalTransactionDataType>(
-          socketId,
-        );
-      console.log('REDIS STORE', transactionData);
-
       const { userId, email, name, phone, address } = transactionData;
       const cart = await this.cartService.validateCart(
         new Types.ObjectId(userId),
@@ -557,24 +638,29 @@ export class OrderService {
       await this.cartService.emptyCart(cart._id);
 
       // send message checkout complete to client when create order completed.
-      this.eventsGateway.orderTransactionSucessEvent(socketId);
+      this.eventsGateway.orderTransactionSucessEvent(transactionData.socketId);
 
       // delete data transaction from redis when create order completed.
-      await this.redisService.deleteTransaction(socketId);
+      await this.redisService.deleteTransaction(transactionId);
+
+      this.notificationForCreateOrder(createOrder.toObject());
 
       return createOrder;
     } catch (err) {
       console.log(err);
       // global._io.to(`${orderData.socketId}`).emit('ORDER_FAILED', { msg: err.message })
-      this.eventsGateway.orderTransactionFailedEvent(socketId, err.message);
+      this.eventsGateway.orderTransactionFailedEvent(
+        transactionData.socketId,
+        err.message,
+      );
       throw new BadGatewayException(err.message);
     }
   }
 
-  async abortPaypalCheckout(socketId: string) {
+  async abortPaypalCheckout(transactionId: string) {
     const transactionData =
       await this.redisService.getTransaction<PaypalTransactionDataType>(
-        socketId,
+        transactionId,
       );
     console.log('REDIS STORE', transactionData);
 
@@ -589,14 +675,17 @@ export class OrderService {
     await this.inventoryCount(cart.items, true);
 
     // delete data transaction from redis when checkout canceled.
-    await this.redisService.deleteTransaction(socketId);
+    await this.redisService.deleteTransaction(transactionId);
   }
 
   async paypalWebhook(req: Request) {
     const webhookEvent = req.body;
-    const socketId = webhookEvent.resource.custom_id;
+    const transactionId = webhookEvent.resource.custom_id;
     const captureID = webhookEvent.resource.id;
-
+    const transactionData =
+      await this.redisService.getTransaction<PaypalTransactionDataType>(
+        transactionId,
+      );
     try {
       const isValid = await this.paypalService.verifyWebhook(
         req.headers,
@@ -607,26 +696,26 @@ export class OrderService {
         console.log('Webhook event', webhookEvent);
 
         if (webhookEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-          await this.createOrderByPaypal(socketId, captureID);
+          await this.createOrderByPaypal(transactionId, captureID);
         }
 
         if (webhookEvent.event_type === 'CHECKOUT.PAYMENT-APPROVAL.REVERSED') {
-          await this.abortPaypalCheckout(socketId);
+          await this.abortPaypalCheckout(transactionId);
         }
 
         if (webhookEvent.event_type === 'PAYMENT.CAPTURE.DENIED') {
-          await this.abortPaypalCheckout(socketId);
+          await this.abortPaypalCheckout(transactionId);
         }
       } else {
         this.eventsGateway.orderTransactionFailedEvent(
-          socketId,
+          transactionData.socketId,
           'Server Error: Invalid webhook event',
         );
         console.log('Invalid webhook event');
       }
     } catch (error) {
       this.eventsGateway.orderTransactionFailedEvent(
-        socketId,
+        transactionData.socketId,
         'Server Error: Invalid webhook event',
       );
       console.error('Error verifying webhook', error);
@@ -718,6 +807,8 @@ export class OrderService {
 
       // delete data transaction from redis when create order completed.
       await this.redisService.deleteTransaction(orderId);
+
+      this.notificationForCreateOrder(createOrder.toObject());
 
       return createOrder;
     } catch (err) {

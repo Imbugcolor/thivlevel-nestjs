@@ -5,5 +5,7 @@ export class TransactionDataType extends CreateOrderDto {
   email: string;
 }
 
-export class PaypalTransactionDataType extends TransactionDataType {}
+export class PaypalTransactionDataType extends TransactionDataType {
+  socketId: string;
+}
 export class VnpayTransactionDataType extends TransactionDataType {}
