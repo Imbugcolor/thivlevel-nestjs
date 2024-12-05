@@ -206,12 +206,8 @@ export class ProductsService {
       }
     });
 
-    const removeVariants = oldProduct.variants.filter(
-      (item) => !ids.includes(item.toString()),
-    );
-
-    oldProduct.variants = oldProduct.variants.filter(
-      (item) => !removeVariants.includes(item),
+    oldProduct.variants = oldProduct.variants.filter((item) =>
+      ids.includes(item.toString()),
     );
 
     // Update Variants - Add new Variants
