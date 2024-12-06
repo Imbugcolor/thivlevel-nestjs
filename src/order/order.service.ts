@@ -41,6 +41,7 @@ import { NotificationService } from 'src/notification/notification.service';
 import { NotificationType } from 'src/notification/enum/notificaton.enum';
 import { Notification } from 'src/notification/notification.schema';
 import { UserNotification } from 'src/notification/userNotification/userNotification.shema';
+import { LarkService } from 'src/lark/lark.service';
 
 @Injectable()
 export class OrderService {
@@ -61,6 +62,7 @@ export class OrderService {
     private vnpayService: VnpayService,
     private currencyService: CurrencyService,
     private notificationService: NotificationService,
+    private larkService: LarkService,
   ) {
     this.paginator = new Paginator<Order>(this.orderModel);
   }
@@ -206,6 +208,9 @@ export class OrderService {
     const { email } = user;
 
     const cart = await this.cartService.validateCart(user._id, null);
+    if (cart.items.length < 1) {
+      throw new BadRequestException('Giỏ hàng hiện không có sản phẩm nào.');
+    }
     const newItems = await this.mapToCartOrder(cart.items);
 
     const newOrder = new this.orderModel({
@@ -228,6 +233,8 @@ export class OrderService {
     await this.cartService.emptyCart(cart._id);
 
     this.notificationForCreateOrder(createOrder.toObject());
+
+    this.larkService.sendOrderCreatedToLark(createOrder.toObject());
 
     return createOrder;
   }

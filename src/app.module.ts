@@ -30,6 +30,7 @@ import { OtpModule } from './otp/otp.module';
 import { VnpayModule } from './vnpay/vnpay.module';
 import { CurrencyModule } from './currency/currency.module';
 import { NotificationModule } from './notification/notification.module';
+import { LarkModule } from './lark/lark.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { NotificationModule } from './notification/notification.module';
     VnpayModule,
     CurrencyModule,
     NotificationModule,
+    LarkModule,
   ],
   controllers: [StripeWebhookController],
 })

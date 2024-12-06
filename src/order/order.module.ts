@@ -14,6 +14,7 @@ import { EventsModule } from 'src/events/events.module';
 import { VnpayModule } from 'src/vnpay/vnpay.module';
 import { CurrencyModule } from 'src/currency/currency.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { LarkModule } from 'src/lark/lark.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { NotificationModule } from 'src/notification/notification.module';
     EventsModule,
     CurrencyModule,
     NotificationModule,
+    LarkModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],
