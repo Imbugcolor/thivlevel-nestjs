@@ -397,6 +397,45 @@ export class OrderService {
     return orderData;
   }
 
+  async refundOrder(id: string) {
+    try {
+      const order = await this.getOrder(id);
+
+      const paymentIntentId = order.paymentId;
+      if (order.method === OrderMethod.STRIPE_CREDIT_CARD) {
+        await this.stripe.refunds.create({
+          payment_intent: paymentIntentId,
+        });
+      }
+
+      if (order.method === OrderMethod.PAYPAL_CREDIT_CARD) {
+        await this.paypalService.refundPayment(paymentIntentId, order.total);
+      }
+
+      const newOrder = await this.orderModel.findByIdAndUpdate(
+        id,
+        { status: OrderStatus.CANCELED },
+        { new: true },
+      );
+
+      const items = (newOrder.items as any).map((item: any) => {
+        return {
+          ...item,
+          productId: item.productId._id,
+        };
+      });
+
+      await this.inventoryCount(items, true);
+
+      this.soldCount(items, true);
+
+      return newOrder;
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException('Lỗi khi hoàn tiền.');
+    }
+  }
+
   async updateOrderStatus(id: string, status: OrderStatus): Promise<any> {
     const values = Object.values(OrderStatus);
     if (!values.includes(status as unknown as OrderStatus)) {
@@ -443,7 +482,7 @@ export class OrderService {
     return newOrder;
   }
 
-  async cancelOrder(id: string, user: User): Promise<any> {
+  async cancelOrder(id: string, user: User) {
     const oldOrder = await this.getMyOrder(id, user);
 
     if (oldOrder.status === OrderStatus.CANCELED) {
@@ -458,24 +497,31 @@ export class OrderService {
       return new BadRequestException(`Đơn hàng: ${id} không thể hủy.`);
     }
 
-    const newOrder = await this.orderModel.findByIdAndUpdate(
-      id,
-      { status: OrderStatus.CANCELED },
-      { new: true },
-    );
+    if (
+      oldOrder.method === OrderMethod.STRIPE_CREDIT_CARD ||
+      oldOrder.method === OrderMethod.PAYPAL_CREDIT_CARD
+    ) {
+      return this.refundOrder(id);
+    } else {
+      const newOrder = await this.orderModel.findByIdAndUpdate(
+        id,
+        { status: OrderStatus.CANCELED },
+        { new: true },
+      );
 
-    const items = (newOrder.items as any).map((item: any) => {
-      return {
-        ...item,
-        productId: item.productId._id,
-      };
-    });
+      const items = (newOrder.items as any).map((item: any) => {
+        return {
+          ...item,
+          productId: item.productId._id,
+        };
+      });
 
-    await this.inventoryCount(items, true);
+      await this.inventoryCount(items, true);
 
-    this.soldCount(items, true);
+      this.soldCount(items, true);
 
-    return newOrder;
+      return newOrder;
+    }
   }
 
   soldCount(items: OrderItem[], resold: boolean) {
@@ -790,6 +836,7 @@ export class OrderService {
         email,
         items: newItems,
         paymentId: transactionNo,
+        vnPayRefId: orderId,
         address,
         total: cart.subTotal,
         phone,

@@ -160,4 +160,36 @@ export class PaypalService {
   //   const accessToken = await this.generateAccessToken();
   //   const url = `${this.base}/v2/payments/captures/${captureID}/refund`;
   // }
+
+  async refundPayment(captureId: string, amount: number) {
+    const accessToken = await this.generateAccessToken();
+    const authAssertion = this.generatePayPalAuthAssertion();
+
+    const refundData = {
+      amount: {
+        value: amount, // Refund amount
+        currency_code: 'USD', // Currency
+      },
+    };
+
+    const response = await fetch(
+      `${this.base}/v2/payments/captures/${captureId}/refund`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'PayPal-Auth-Assertion': authAssertion, // Optional: Custom auth assertion if needed
+        },
+        body: JSON.stringify(refundData),
+      },
+    );
+
+    const data = await response.json();
+    if (response.ok) {
+      console.log('Refund Response:', data);
+    } else {
+      console.error('Error processing refund:', data);
+    }
+  }
 }

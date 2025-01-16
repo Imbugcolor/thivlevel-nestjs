@@ -145,4 +145,68 @@ export class VnpayService {
       return { message: 'Invalid checksum' };
     }
   }
+
+  // async createVnpayRefund(
+  //   orderData: VnpayTransactionDataType,
+  //   orderInfor: string,
+  //   amount: number,
+  //   ipAddr: string | string[],
+  // ) {
+  //   const tmnCode = this.configService.get('VNPAY_VNP_TMNCODE');
+  //   const secretKey = this.configService.get('VNPAY_VNP_HASHSECRET');
+  //   const returnUrl = this.configService.get('VNPAY_VNP_RETURN_URL');
+  //   const vnpUrl = this.configService.get('VNPAY_VNP_URL');
+
+  //   const date = new Date();
+  //   const createDate = date
+  //     .toISOString()
+  //     .slice(0, 19)
+  //     .replace('T', '')
+  //     .replace(/[-:]/g, '');
+  //   const orderId = createDate + Math.floor(Math.random() * 1000000);
+
+  //   const orderType = 'billpayment';
+  //   const currCode = 'VND';
+  //   const locale = 'vn';
+
+  //   let vnpParams: any = {
+  //     vnp_Version: '2.1.0',
+  //     vnp_Command: 'pay',
+  //     vnp_TmnCode: tmnCode,
+  //     vnp_Amount: amount * 100, // VNPAY expects amount in cents
+  //     vnp_CurrCode: currCode,
+  //     vnp_TxnRef: orderId,
+  //     vnp_OrderInfo: orderInfor,
+  //     vnp_OrderType: orderType,
+  //     vnp_Locale: locale,
+  //     vnp_ReturnUrl: returnUrl,
+  //     vnp_IpAddr: ipAddr,
+  //     vnp_CreateDate: createDate,
+  //   };
+
+  //   // Sort the parameters alphabetically by key for signature creation
+  //   vnpParams = Object.keys(vnpParams)
+  //     .sort()
+  //     .reduce((acc, key) => {
+  //       acc[key] = vnpParams[key];
+  //       return acc;
+  //     }, {});
+
+  //   // Create query string for VNPAY API
+  //   const querystring = new URLSearchParams(vnpParams).toString();
+
+  //   // Hashing the query string with the secret key
+  //   const hmac = crypto.createHmac('sha512', secretKey);
+  //   const signData = hmac
+  //     .update(Buffer.from(querystring, 'utf-8'))
+  //     .digest('hex');
+
+  //   // Append the signature to the URL
+  //   const vnpUrlWithSignature = `${vnpUrl}?${querystring}&vnp_SecureHash=${signData}`;
+
+  //   // Set Transaction to Redis
+  //   await this.redisService.setTransaction(orderId, orderData);
+
+  //   return vnpUrlWithSignature;
+  // }
 }

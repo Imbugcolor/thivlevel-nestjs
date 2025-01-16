@@ -18,8 +18,14 @@ export class Order {
   @Prop({ type: String, required: true })
   email: string;
 
+  // @Prop({ type: mongoose.Types.ObjectId, ref: Payment.name })
+  // paymentId: Payment;
+
   @Prop({ type: String })
   paymentId: string;
+
+  @Prop({ type: String })
+  vnPayRefId: string;
 
   @Prop()
   address: AddressType;
