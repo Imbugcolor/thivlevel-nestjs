@@ -80,10 +80,7 @@ export class OrderController {
 
   @Patch('/cancel-order/:id')
   @UseGuards(AccessTokenGuard)
-  async cancelOrder(
-    @Param('id') id: string,
-    @GetUser() user: User,
-  ): Promise<Order> {
+  async cancelOrder(@Param('id') id: string, @GetUser() user: User) {
     return this.orderService.cancelOrder(id, user);
   }
 
@@ -109,6 +106,13 @@ export class OrderController {
     @GetUser() user: User,
   ) {
     return this.orderService.createVnpayCheckout(req, user, vnpayCheckoutDto);
+  }
+
+  @Patch('/refund-order/:id')
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.Admin)
+  async refundOrder(@Param('id') id: string): Promise<Order> {
+    return this.orderService.refundOrder(id);
   }
 
   // *ADMIN* //

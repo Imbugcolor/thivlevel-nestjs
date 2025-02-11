@@ -149,7 +149,7 @@ export class UserController {
     return this.userService.adminLogIn(loginDto, res);
   }
 
-  @Get()
+  @Get('/list')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles(Role.Admin)
   @UsePipes(new ValidationPipe({ transform: true }))
