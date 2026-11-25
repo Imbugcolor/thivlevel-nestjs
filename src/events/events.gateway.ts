@@ -33,11 +33,14 @@ export class EventsGateway
 
   async handleConnection(client: Socket) {
     const { authorization } = client.handshake.headers;
+    const authToken = client.handshake.auth?.token;
+    const bearerToken = (authorization as string | undefined)?.split(' ')[1];
+    const token = authToken || bearerToken;
 
-    if (authorization && (authorization as string)?.split(' ')[1]) {
+    if (token) {
       try {
         client.data.user = await this.jwtService.verifyAsync(
-          (authorization as string).split(' ')[1],
+          token,
           {
             secret: this.configService.get('JWT_SECRET'),
           },
